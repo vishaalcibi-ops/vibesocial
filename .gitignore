@@ -16,6 +16,7 @@ dist-ssr
 .env.*.local
 *.backup
 *.recovery
+*.apk
 
 # Editor directories and files
 .vscode/*
