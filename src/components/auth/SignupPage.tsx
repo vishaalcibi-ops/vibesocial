@@ -8,15 +8,17 @@ import {
   User,
   AlertCircle,
   Check,
+  ArrowRight,
 } from 'lucide-react'
 import { authService } from '../../services/authService'
 
 interface SignupPageProps {
   onNavigate: (path: string) => void
   onAuthSuccess?: () => void
+  onExploreGuest?: () => void
 }
 
-export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSuccess }) => {
+export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSuccess, onExploreGuest }) => {
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -93,9 +95,8 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
       }
       if (onAuthSuccess) {
         onAuthSuccess()
-      } else {
-        onNavigate('/')
       }
+      onNavigate('/')
     } catch (err: any) {
       if (
         err?.message?.includes('cancelled') ||
@@ -614,6 +615,34 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
             Log in
           </button>
         </div>
+
+        {/* Explore App as Guest */}
+        {onExploreGuest && (
+          <button
+            type="button"
+            onClick={onExploreGuest}
+            style={{
+              width: '100%',
+              height: '44px',
+              marginTop: '16px',
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px dashed rgba(56, 189, 248, 0.35)',
+              borderRadius: '8px',
+              color: '#38BDF8',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span>Explore App as Guest (Stories, Reels & Feed)</span>
+            <ArrowRight size={16} />
+          </button>
+        )}
 
         {/* Footer info */}
         <div style={{ marginTop: 24, textAlign: 'center', fontSize: 11, color: '#666666' }}>

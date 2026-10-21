@@ -89,6 +89,7 @@ const tabToPath = (tab: TabType, profileId?: string | null): string => {
 const VibeSocialApp: React.FC = () => {
   const { user, loading } = useAuth()
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
+  const [guestMode, setGuestMode] = useState(false)
 
   // Initialize active tab and profile from URL
   const initialRoute = pathToTab(window.location.pathname)
@@ -341,12 +342,16 @@ const VibeSocialApp: React.FC = () => {
   }
 
   // 2. Unauthenticated Visitor Routing
-  if (!user) {
+  if (!user && !guestMode) {
     if (currentPath === '/signup') {
       return (
         <SignupPage
           onNavigate={navigate}
           onAuthSuccess={() => {
+            navigate('/')
+          }}
+          onExploreGuest={() => {
+            setGuestMode(true)
             navigate('/')
           }}
         />
@@ -359,12 +364,16 @@ const VibeSocialApp: React.FC = () => {
         onAuthSuccess={() => {
           navigate('/')
         }}
+        onExploreGuest={() => {
+          setGuestMode(true)
+          navigate('/')
+        }}
       />
     )
   }
 
   // 3. Authenticated Social Experience
-  const activeProfileUserId = selectedProfileId || user.id
+  const activeProfileUserId = selectedProfileId || user?.id || 'guest_user'
 
   return (
     <div className={`app-container ${isAndroid ? 'android-mode' : 'web-mode'}`}>

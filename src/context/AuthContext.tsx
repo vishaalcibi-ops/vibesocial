@@ -47,8 +47,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = async (userId: string) => {
     try {
-      const p = await profileService.getProfileById(userId)
-      setProfile(p)
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+      const fetchPromise = profileService.getProfileById(userId)
+      const p = await Promise.race([fetchPromise, timeoutPromise])
+      if (p) setProfile(p)
     } catch (e) {
       console.error('Failed to load profile:', e)
     }
@@ -86,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(sess as AuthSession | null)
         setUser(sess?.user ?? null)
         if (sess?.user) {
-          await loadUserProfile(sess.user.id)
+          loadUserProfile(sess.user.id).catch(console.error)
         }
       } catch (sessErr) {
         console.error('Session retrieval error:', sessErr)
@@ -104,12 +106,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return
       setSession(sess as AuthSession | null)
       setUser(sess?.user ?? null)
+      setLoading(false)
       if (sess?.user) {
-        await loadUserProfile(sess.user.id)
+        loadUserProfile(sess.user.id).catch(console.error)
       } else {
         setProfile(null)
       }
-      setLoading(false)
     })
 
     return () => {

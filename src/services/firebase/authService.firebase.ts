@@ -73,9 +73,10 @@ const formatFirebaseError = (err: any): Error => {
 
 export const ensureUserProfileExists = async (user: User): Promise<void> => {
   try {
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
     const userDocRef = doc(db, 'users', user.uid)
-    const userDoc = await getDoc(userDocRef)
-    if (!userDoc.exists()) {
+    const userDoc = await Promise.race([getDoc(userDocRef), timeoutPromise])
+    if (userDoc && !userDoc.exists()) {
       const rawName = user.displayName || user.email?.split('@')[0] || 'user'
       const cleanUsername =
         rawName
@@ -221,7 +222,7 @@ export const authServiceFirebase = {
         }
         const credential = GoogleAuthProvider.credential(res.idToken)
         const cred = await signInWithCredential(auth, credential)
-        await ensureUserProfileExists(cred.user)
+        ensureUserProfileExists(cred.user).catch((err) => console.warn('Background profile create:', err))
         return { user: cred.user }
       } catch (nativeErr: any) {
         const msg = (nativeErr?.message || '').toLowerCase()
