@@ -461,6 +461,19 @@ export const profileServiceFirebase = {
     }
   },
 
+  async getFollowingIds(userId: string): Promise<string[]> {
+    if (!isFirebaseConfigured() || !userId) return []
+    try {
+      const followingColl = collection(db, 'users', userId, 'following')
+      const snap = await getDocs(followingColl)
+      if (snap.empty) return []
+      return snap.docs.map((d) => d.data().followed_id || d.id)
+    } catch (error) {
+      console.warn('Error fetching following IDs:', error)
+      return []
+    }
+  },
+
   async getUserSettings(userId: string) {
     const defaultSettings = {
       is_private: false,

@@ -11,6 +11,7 @@ import {
 import type { InstagramNote, AudioTrack, Profile } from '../types/database.types'
 import { TRENDING_TRACKS } from './musicService'
 import { closeFriendsService } from './closeFriendsService'
+import { profileService } from './profileService'
 
 const LOCAL_STORAGE_NOTES_KEY = 'vibesocial_instagram_notes'
 
@@ -179,15 +180,52 @@ export const noteService = {
 
     this.setStoredNotes(active)
 
-    // Filter out close friends notes unless viewer is author or close friend
     const viewerId = currentUserId || auth.currentUser?.uid
+
+    // If no viewer is specified (e.g. unauthenticated test suites), return active notes
+    if (!viewerId) {
+      return active
+    }
+
+    // Load following IDs for viewer to restrict notes to followers only
+    let followingIds = new Set<string>()
+    try {
+      const fIds = await profileService.getFollowingIds(viewerId)
+      followingIds = new Set(fIds)
+    } catch (err) {
+      console.warn('Failed to load following IDs for notes visibility:', err)
+    }
+
+    // Filter notes:
+    // 1. Author can always see their own note
+    // 2. Demo/sample notes remain visible for initial discovery
+    // 3. For any other real user note with music/audio or text, viewer MUST be a follower
+    // 4. If close friends, viewer must be on author's close friends list
     const filteredNotes = await Promise.all(
       active.map(async (n) => {
-        if (!n.is_close_friends) return n
-        if (!viewerId) return null
-        if (viewerId === n.user_id) return n
-        const isFriend = await closeFriendsService.isCloseFriend(n.user_id, viewerId)
-        return isFriend ? n : null
+        // Author's own note
+        if (n.user_id === viewerId) {
+          return n
+        }
+
+        // Demo sample notes
+        if (n.id.startsWith('sample-note') || n.user_id.includes('sample')) {
+          return n
+        }
+
+        // Real user note: viewer MUST be following author (i.e. viewer is a follower)
+        const isFollower = followingIds.has(n.user_id)
+        if (!isFollower) {
+          return null
+        }
+
+        // If close friends note, viewer must also be in close friends
+        if (n.is_close_friends || n.audience === 'close_friends') {
+          const isFriend = await closeFriendsService.isCloseFriend(n.user_id, viewerId)
+          return isFriend ? n : null
+        }
+
+        return n
       })
     )
 

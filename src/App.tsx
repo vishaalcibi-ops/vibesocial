@@ -377,6 +377,8 @@ const VibeSocialApp: React.FC = () => {
           onBack={() => {
             if (selectedProfileId) {
               setSelectedProfileId(null)
+            } else if (currentTab === 'settings') {
+              handleTabChange('profile')
             } else if (currentTab !== 'feed') {
               handleTabChange('feed')
             }
@@ -467,7 +469,9 @@ const VibeSocialApp: React.FC = () => {
             />
           )}
 
-          {currentTab === 'settings' && <SettingsView />}
+          {currentTab === 'settings' && (
+            <SettingsView onBack={() => handleTabChange('profile')} />
+          )}
 
           {currentTab === 'activity' && (
             <ActivityView

@@ -204,6 +204,18 @@ export const profileService = {
     return []
   },
 
+  async getFollowingIds(userId: string): Promise<string[]> {
+    if (getBackendProvider() === 'firebase') {
+      return profileServiceFirebase.getFollowingIds(userId)
+    }
+    if (!isSupabaseConfigured() || !userId) return []
+    const { data } = await supabase
+      .from('follows')
+      .select('followed_id')
+      .eq('follower_id', userId)
+    return (data || []).map((row: any) => row.followed_id)
+  },
+
   async getUserSettings(userId: string) {
     if (getBackendProvider() === 'firebase') {
       return profileServiceFirebase.getUserSettings(userId)

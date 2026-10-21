@@ -18,6 +18,8 @@ import {
   UserX,
   EyeOff,
   Search,
+  ChevronRight,
+  ArrowLeft,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -35,7 +37,11 @@ type SettingsTab =
   | 'data'
   | 'about'
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  onBack?: () => void
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
   const { user, profile, refreshProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
 
@@ -43,6 +49,26 @@ export const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Mobile layout state
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const isAndroid = /android/i.test(navigator.userAgent)
+    const isMobileUA = /android|iphone|ipad|ipod/i.test(navigator.userAgent)
+    return isAndroid || isMobileUA || window.innerWidth <= 768
+  })
+  const [mobileSubPage, setMobileSubPage] = useState<SettingsTab | null>(null)
+  const [mobileSearchQuery, setMobileSearchQuery] = useState('')
+
+  useEffect(() => {
+    const handleResize = () => {
+      const isAndroid = /android/i.test(navigator.userAgent)
+      const isMobileUA = /android|iphone|ipad|ipod/i.test(navigator.userAgent)
+      setIsMobile(isAndroid || isMobileUA || window.innerWidth <= 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Account Form State
   const [fullName, setFullName] = useState(profile?.full_name || '')
@@ -329,86 +355,92 @@ export const SettingsView: React.FC = () => {
     }
   }
 
-  return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: '935px',
-        margin: '0 auto',
-        display: 'flex',
-        minHeight: '75vh',
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Settings Navigation Sidebar */}
-      <aside
-        style={{
-          width: '240px',
-          borderRight: '1px solid var(--border-subtle)',
-          padding: '16px 0',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'var(--bg-secondary)',
-        }}
-      >
-        <div style={{ padding: '0 20px 16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 800 }}>Settings</h2>
-        </div>
+  const getTabTitle = (tab: SettingsTab): string => {
+    switch (tab) {
+      case 'account':
+        return 'Edit Profile'
+      case 'security':
+        return 'Password & Security'
+      case 'privacy':
+        return 'Account Privacy'
+      case 'notifications':
+        return 'Notifications'
+      case 'appearance':
+        return 'Appearance'
+      case 'accessibility':
+        return 'Accessibility'
+      case 'data':
+        return 'Data & Account'
+      case 'about':
+        return 'About & Help'
+      default:
+        return 'Settings'
+    }
+  }
 
-        <nav style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
-          {[
-            { id: 'account', label: 'Edit Profile', icon: User },
-            { id: 'security', label: 'Password & Security', icon: Lock },
-            { id: 'privacy', label: 'Account Privacy', icon: Shield },
-            { id: 'archive', label: 'Archive (Posts & Stories)', icon: Archive },
-            { id: 'notifications', label: 'Notifications', icon: Bell },
-            { id: 'appearance', label: 'Appearance', icon: Moon },
-            { id: 'accessibility', label: 'Accessibility', icon: Eye },
-            { id: 'data', label: 'Data & Account', icon: Download },
-            { id: 'about', label: 'About & Help', icon: HelpCircle },
-          ].map((item) => {
-            const Icon = item.icon
-            const isActive = activeTab === item.id
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (item.id === 'archive') {
-                    window.history.pushState({}, '', '/archive')
-                    window.dispatchEvent(new PopStateEvent('popstate'))
-                    return
-                  }
-                  setActiveTab(item.id as SettingsTab)
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px 20px',
-                  background: isActive ? 'var(--bg-card)' : 'transparent',
-                  border: 'none',
-                  borderLeft: isActive ? '3px solid var(--color-pink)' : '3px solid transparent',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <Icon size={18} color={isActive ? 'var(--color-pink)' : 'currentColor'} />
-                <span>{item.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-      </aside>
+  const handleSignOut = async () => {
+    if (window.confirm('Are you sure you want to log out?')) {
+      try {
+        await signOut()
+        window.location.href = '/'
+      } catch (err) {
+        console.error('Logout error:', err)
+      }
+    }
+  }
 
-      {/* Main Settings Content Area */}
-      <main style={{ flex: 1, padding: '28px 36px', overflowY: 'auto' }}>
+  const SETTINGS_SECTIONS = [
+    {
+      title: 'Account',
+      items: [
+        { id: 'account', label: 'Edit Profile', subtitle: 'Name, username, bio, avatar', icon: User },
+        { id: 'security', label: 'Password & Security', subtitle: 'Password, login methods, security', icon: Lock },
+      ],
+    },
+    {
+      title: 'How you use VibeSocial',
+      items: [
+        { id: 'notifications', label: 'Notifications', subtitle: 'Likes, comments, follows, messages', icon: Bell },
+        { id: 'archive', label: 'Archive (Posts & Stories)', subtitle: 'View archived posts and expired stories', icon: Archive },
+      ],
+    },
+    {
+      title: 'Who can see your content',
+      items: [
+        { id: 'privacy', label: 'Account Privacy', subtitle: 'Private account, blocked & restricted users', icon: Shield },
+      ],
+    },
+    {
+      title: 'Your app and media',
+      items: [
+        { id: 'appearance', label: 'Appearance', subtitle: 'Dark mode, theme preferences', icon: Moon },
+        { id: 'accessibility', label: 'Accessibility', subtitle: 'Reduce motion, animations', icon: Eye },
+        { id: 'data', label: 'Data & Account', subtitle: 'Export data, delete account', icon: Download },
+      ],
+    },
+    {
+      title: 'More info and support',
+      items: [
+        { id: 'about', label: 'About & Help', subtitle: 'App info, version, privacy terms, support', icon: HelpCircle },
+      ],
+    },
+  ]
+
+  const filteredSections = SETTINGS_SECTIONS.map((sec) => ({
+    ...sec,
+    items: sec.items.filter((item) => {
+      if (!mobileSearchQuery.trim()) return true
+      const q = mobileSearchQuery.toLowerCase()
+      return (
+        item.label.toLowerCase().includes(q) ||
+        item.subtitle.toLowerCase().includes(q) ||
+        sec.title.toLowerCase().includes(q)
+      )
+    }),
+  })).filter((sec) => sec.items.length > 0)
+
+  const renderTabContent = () => (
+    <>
         {/* Alerts */}
         {successMsg && (
           <div
@@ -1310,6 +1342,385 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
         )}
+    </>
+  )
+
+  // 1. Mobile Native Android Settings List
+  if (isMobile && mobileSubPage === null) {
+    return (
+      <div
+        className="android-settings-container"
+        style={{
+          width: '100%',
+          minHeight: '100vh',
+          background: 'var(--bg-primary, #0C1012)',
+          color: 'var(--text-primary)',
+          paddingBottom: '80px',
+        }}
+      >
+        {/* Top Header if onBack provided */}
+        <div
+          style={{
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-secondary, #12171A)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+          }}
+        >
+          {onBack && (
+            <button
+              onClick={onBack}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                cursor: 'pointer',
+              }}
+              aria-label="Back"
+            >
+              <ArrowLeft size={22} />
+            </button>
+          )}
+          <h1 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>
+            Settings and privacy
+          </h1>
+        </div>
+
+        {/* Search bar */}
+        <div style={{ padding: '12px 16px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              background: 'var(--bg-card, #1A2126)',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <Search size={18} color="var(--text-muted)" />
+            <input
+              type="text"
+              value={mobileSearchQuery}
+              onChange={(e) => setMobileSearchQuery(e.target.value)}
+              placeholder="Search settings"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+                width: '100%',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Grouped Settings Sections */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '0 16px 20px' }}>
+          {filteredSections.map((sec) => (
+            <div key={sec.title}>
+              <h3
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  color: 'var(--text-muted)',
+                  marginBottom: '8px',
+                  paddingLeft: '4px',
+                }}
+              >
+                {sec.title}
+              </h3>
+              <div
+                style={{
+                  background: 'var(--bg-card, #161D21)',
+                  borderRadius: '14px',
+                  border: '1px solid var(--border-subtle)',
+                  overflow: 'hidden',
+                }}
+              >
+                {sec.items.map((item, idx) => {
+                  const Icon = item.icon
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (item.id === 'archive') {
+                          window.history.pushState({}, '', '/archive')
+                          window.dispatchEvent(new PopStateEvent('popstate'))
+                          return
+                        }
+                        setActiveTab(item.id as SettingsTab)
+                        setMobileSubPage(item.id as SettingsTab)
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '14px 16px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom:
+                          idx < sec.items.length - 1
+                            ? '1px solid var(--border-subtle)'
+                            : 'none',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          <Icon size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '15px', fontWeight: 600 }}>{item.label}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {item.subtitle}
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight size={18} color="var(--text-muted)" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Login / Logout Section */}
+          <div>
+            <h3
+              style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.6px',
+                color: 'var(--text-muted)',
+                marginBottom: '8px',
+                paddingLeft: '4px',
+              }}
+            >
+              Login
+            </h3>
+            <div
+              style={{
+                background: 'var(--bg-card, #161D21)',
+                borderRadius: '14px',
+                border: '1px solid var(--border-subtle)',
+                overflow: 'hidden',
+              }}
+            >
+              <button
+                onClick={handleSignOut}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  padding: '14px 16px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                  }}
+                >
+                  <LogOut size={18} />
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: 600 }}>
+                  Log out {profile?.username ? `@${profile.username}` : ''}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '16px 0',
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+            }}
+          >
+            VibeSocial for Android • Version 1.0.0
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 2. Mobile Sub-page Detail View (Full width, back arrow)
+  if (isMobile && mobileSubPage !== null) {
+    return (
+      <div
+        className="android-settings-subpage"
+        style={{
+          width: '100%',
+          minHeight: '100vh',
+          background: 'var(--bg-primary, #0C1012)',
+          color: 'var(--text-primary)',
+          paddingBottom: '80px',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-secondary, #12171A)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 20,
+          }}
+        >
+          <button
+            onClick={() => setMobileSubPage(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px',
+              cursor: 'pointer',
+              borderRadius: '50%',
+            }}
+            aria-label="Back to Settings"
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>
+            {getTabTitle(activeTab)}
+          </h2>
+        </div>
+
+        <main style={{ padding: '16px', width: '100%', boxSizing: 'border-box' }}>
+          {renderTabContent()}
+        </main>
+      </div>
+    )
+  }
+
+  // 3. Desktop 2-Column Sidebar Layout
+  return (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '935px',
+        margin: '0 auto',
+        display: 'flex',
+        minHeight: '75vh',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+      }}
+    >
+      <aside
+        style={{
+          width: '240px',
+          borderRight: '1px solid var(--border-subtle)',
+          padding: '16px 0',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--bg-secondary)',
+        }}
+      >
+        <div style={{ padding: '0 20px 16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 800 }}>Settings</h2>
+        </div>
+
+        <nav style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+          {[
+            { id: 'account', label: 'Edit Profile', icon: User },
+            { id: 'security', label: 'Password & Security', icon: Lock },
+            { id: 'privacy', label: 'Account Privacy', icon: Shield },
+            { id: 'archive', label: 'Archive (Posts & Stories)', icon: Archive },
+            { id: 'notifications', label: 'Notifications', icon: Bell },
+            { id: 'appearance', label: 'Appearance', icon: Moon },
+            { id: 'accessibility', label: 'Accessibility', icon: Eye },
+            { id: 'data', label: 'Data & Account', icon: Download },
+            { id: 'about', label: 'About & Help', icon: HelpCircle },
+          ].map((item) => {
+            const Icon = item.icon
+            const isActive = activeTab === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (item.id === 'archive') {
+                    window.history.pushState({}, '', '/archive')
+                    window.dispatchEvent(new PopStateEvent('popstate'))
+                    return
+                  }
+                  setActiveTab(item.id as SettingsTab)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 20px',
+                  background: isActive ? 'var(--bg-card)' : 'transparent',
+                  border: 'none',
+                  borderLeft: isActive ? '3px solid var(--color-pink)' : '3px solid transparent',
+                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Icon size={18} color={isActive ? 'var(--color-pink)' : 'currentColor'} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+      </aside>
+
+      <main style={{ flex: 1, padding: '28px 36px', overflowY: 'auto' }}>
+        {renderTabContent()}
       </main>
     </div>
   )
