@@ -9,10 +9,13 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   deleteUser,
 } from 'firebase/auth'
 import type { User } from 'firebase/auth'
+import { Capacitor } from '@capacitor/core'
+import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in'
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from './firebaseConfig'
 import type { Profile } from '../../types/database.types'
@@ -206,12 +209,42 @@ export const authServiceFirebase = {
       throw new Error('Firebase credentials are not configured yet.')
     }
 
+    // 1. Native Mobile (Android APK) Flow: Native Credential Manager (No external browser, no redirect URI, no malformed URL)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await GoogleSignIn.initialize({
+          clientId: '147783519509-i5p5bp8l16d1hhgh3p0n28aeqdqk4f7u.apps.googleusercontent.com',
+        })
+        const res = await GoogleSignIn.signIn()
+        if (!res?.idToken) {
+          throw new Error('Google Sign-In did not return an authentication token.')
+        }
+        const credential = GoogleAuthProvider.credential(res.idToken)
+        const cred = await signInWithCredential(auth, credential)
+        await ensureUserProfileExists(cred.user)
+        return { user: cred.user }
+      } catch (nativeErr: any) {
+        const msg = (nativeErr?.message || '').toLowerCase()
+        const code = (nativeErr?.code || '').toLowerCase()
+        if (
+          msg.includes('canceled') ||
+          msg.includes('cancelled') ||
+          msg.includes('sign_in_canceled') ||
+          code.includes('canceled')
+        ) {
+          throw new Error('Sign-in cancelled.')
+        }
+        console.error('Native Google Sign-In error:', nativeErr)
+        throw formatFirebaseError(nativeErr)
+      }
+    }
+
     const provider = new GoogleAuthProvider()
     provider.setCustomParameters({ prompt: 'select_account' })
 
     const isMobile = isMobileDevice()
 
-    // 1. Desktop flow: Popup is fast, non-navigating, and keeps state
+    // 2. Desktop flow: Popup is fast, non-navigating, and keeps state
     if (!isMobile) {
       try {
         const cred = await signInWithPopup(auth, provider)
@@ -225,7 +258,7 @@ export const authServiceFirebase = {
       }
     }
 
-    // 2. Mobile flow: Try popup first; if popup is blocked or unsupported on mobile browser, fall back to redirect
+    // 3. Web Mobile flow: Try popup first; if popup is blocked on mobile browser, fall back to redirect
     try {
       const cred = await signInWithPopup(auth, provider)
       await ensureUserProfileExists(cred.user)
@@ -253,6 +286,13 @@ export const authServiceFirebase = {
 
   async signOut() {
     if (!isFirebaseConfigured()) return
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await GoogleSignIn.signOut()
+      } catch (e) {
+        // ignore native sign-out error
+      }
+    }
     await firebaseSignOut(auth)
   },
 
