@@ -10,7 +10,6 @@ import {
   Check,
 } from 'lucide-react'
 import { authService } from '../../services/authService'
-import { usePlatform } from '../../hooks/usePlatform'
 
 interface SignupPageProps {
   onNavigate: (path: string) => void
@@ -18,8 +17,6 @@ interface SignupPageProps {
 }
 
 export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSuccess }) => {
-  const { isAndroid } = usePlatform()
-  const [showAndroidNotice, setShowAndroidNotice] = useState(false)
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -88,13 +85,6 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
 
   const handleGoogleSignup = async () => {
     setErrorMsg(null)
-
-    // On Native Android APK, intercept Google signup to prevent WebView hijacking
-    if (isAndroid) {
-      setShowAndroidNotice(true)
-      return
-    }
-
     setGoogleLoading(true)
     try {
       const res = await authService.signInWithGoogle()
@@ -630,122 +620,6 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
           By signing up, you agree to VibeSocial's Terms, Privacy Policy, and Community Guidelines.
         </div>
       </div>
-
-      {/* Android Native Google Notice Modal */}
-      {showAndroidNotice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
-          onClick={() => setShowAndroidNotice(false)}
-        >
-          <div
-            style={{
-              background: '#181E22',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '20px',
-              padding: '24px 20px',
-              maxWidth: '360px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
-              textAlign: 'center',
-              boxSizing: 'border-box',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: 'rgba(56, 189, 248, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 14px',
-                color: '#38bdf8',
-              }}
-            >
-              <Sparkles size={24} />
-            </div>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', marginBottom: '8px' }}>
-              Android Native Sign-Up
-            </h3>
-            <p style={{ fontSize: '13px', color: '#94A3B8', lineHeight: 1.6, marginBottom: '20px' }}>
-              To keep your session secure inside the Android APK without browser redirects, please create your account with your <strong>Name, Username, Email & Password</strong> below.
-              <br /><br />
-              Google SSO is available on our web platform (<strong>vibesocial-sigma.vercel.app</strong>).
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAndroidNotice(false)
-                  const el = document.querySelector('input[type="text"]') as HTMLInputElement
-                  if (el) el.focus()
-                }}
-                style={{
-                  padding: '12px',
-                  background: '#0095F6',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: '#FFFFFF',
-                  fontWeight: 700,
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                Sign Up with Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAndroidNotice(false)
-                  onNavigate('/login')
-                }}
-                style={{
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '10px',
-                  color: '#E2E8F0',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                Already have an Account? Log In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  window.open('https://vibesocial-sigma.vercel.app/signup', '_system')
-                  setShowAndroidNotice(false)
-                }}
-                style={{
-                  padding: '10px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#64748B',
-                  fontWeight: 500,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                }}
-              >
-                Open Web Version (Browser)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

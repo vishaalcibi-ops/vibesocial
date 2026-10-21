@@ -30,7 +30,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
 
   // Forgot password modal state
   const [showForgotModal, setShowForgotModal] = useState(false)
-  const [showAndroidNotice, setShowAndroidNotice] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotSuccess, setForgotSuccess] = useState(false)
@@ -88,14 +87,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
 
   const handleGoogleSignIn = async () => {
     setErrorMsg(null)
-
-    // On Native Android APK, intercept Google Sign-in to prevent redirecting the internal
-    // WebView away from localhost to an external blank page. Guide user to Email & Password.
-    if (isAndroid) {
-      setShowAndroidNotice(true)
-      return
-    }
-
     setGoogleLoading(true)
     try {
       const res = await authService.signInWithGoogle()
@@ -543,28 +534,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
             </div>
           )}
 
-          {/* Android App Notice Banner */}
-          {isAndroid && (
-            <div
-              style={{
-                background: 'rgba(56, 189, 248, 0.08)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                borderRadius: '8px',
-                padding: '9px 12px',
-                marginBottom: '16px',
-                fontSize: '12px',
-                color: '#38bdf8',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                lineHeight: 1.4,
-              }}
-            >
-              <Sparkles size={15} style={{ flexShrink: 0 }} />
-              <span>Android App: Enter your email & password below to access your feed.</span>
-            </div>
-          )}
-
           {/* Login Form */}
           <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Email Input */}
@@ -988,122 +957,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Android Native Google Notice Modal */}
-      {showAndroidNotice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
-          onClick={() => setShowAndroidNotice(false)}
-        >
-          <div
-            style={{
-              background: '#181E22',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '20px',
-              padding: '24px 20px',
-              maxWidth: '360px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
-              textAlign: 'center',
-              boxSizing: 'border-box',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: 'rgba(56, 189, 248, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 14px',
-                color: '#38bdf8',
-              }}
-            >
-              <Sparkles size={24} />
-            </div>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', marginBottom: '8px' }}>
-              Android Native Sign-In
-            </h3>
-            <p style={{ fontSize: '13px', color: '#94A3B8', lineHeight: 1.6, marginBottom: '20px' }}>
-              To keep your session secure inside the Android APK without browser redirects, please log in with your <strong>Email & Password</strong>.
-              <br /><br />
-              Google SSO is available on our web platform (<strong>vibesocial-sigma.vercel.app</strong>).
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAndroidNotice(false)
-                  const el = document.querySelector('input[type="email"]') as HTMLInputElement
-                  if (el) el.focus()
-                }}
-                style={{
-                  padding: '12px',
-                  background: '#0095F6',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: '#FFFFFF',
-                  fontWeight: 700,
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                Continue with Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAndroidNotice(false)
-                  onNavigate('/signup')
-                }}
-                style={{
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '10px',
-                  color: '#E2E8F0',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                Create New Account
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  window.open('https://vibesocial-sigma.vercel.app/login', '_system')
-                  setShowAndroidNotice(false)
-                }}
-                style={{
-                  padding: '10px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#64748B',
-                  fontWeight: 500,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                }}
-              >
-                Open Web Version (Browser)
-              </button>
-            </div>
           </div>
         </div>
       )}

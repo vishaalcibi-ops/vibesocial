@@ -16,7 +16,6 @@ import type { User } from 'firebase/auth'
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from './firebaseConfig'
 import type { Profile } from '../../types/database.types'
-import { isNativePlatform } from '../../utils/platform'
 
 const formatFirebaseError = (err: any): Error => {
   const code = err?.code
@@ -205,15 +204,6 @@ export const authServiceFirebase = {
   async signInWithGoogle(): Promise<{ user: User | null; redirected?: boolean }> {
     if (!isFirebaseConfigured()) {
       throw new Error('Firebase credentials are not configured yet.')
-    }
-
-    // Inside native Capacitor APK (Android WebView):
-    // Standard OAuth redirects navigate the internal WebView away from localhost, destroying
-    // the local React app state. Native APK authentication must use Email/Password.
-    if (isNativePlatform()) {
-      throw new Error(
-        'Google Sign-In is not supported inside the native Android APK. Please log in or register with your email and password, or visit https://vibesocial-sigma.vercel.app'
-      )
     }
 
     const provider = new GoogleAuthProvider()
