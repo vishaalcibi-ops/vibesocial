@@ -221,8 +221,12 @@ export const authServiceFirebase = {
 
   async resetPassword(email: string) {
     if (!isFirebaseConfigured()) throw new Error('Firebase is not configured.')
+    const trimmed = (email || '').trim()
+    if (!trimmed || !trimmed.includes('@') || !trimmed.includes('.')) {
+      throw new Error('Please enter a valid email address.')
+    }
     try {
-      await sendPasswordResetEmail(auth, email)
+      await sendPasswordResetEmail(auth, trimmed)
     } catch (err: any) {
       throw formatFirebaseError(err)
     }

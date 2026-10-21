@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { authService } from '../../services/authService'
+import { usePlatform } from '../../hooks/usePlatform'
 
 interface LoginPageProps {
   onNavigate: (path: string) => void
@@ -33,6 +34,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotSuccess, setForgotSuccess] = useState(false)
   const [forgotError, setForgotError] = useState<string | null>(null)
+
+  const { isAndroid } = usePlatform()
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const isMobileUA =
+      typeof navigator !== 'undefined' &&
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    return isMobileUA || window.innerWidth <= 1024 || isAndroid
+  })
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      const isMobileUA =
+        typeof navigator !== 'undefined' &&
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      setIsMobile(isMobileUA || window.innerWidth <= 1024 || isAndroid)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isAndroid])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,34 +120,43 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
 
   return (
     <div
+      className="login-page-wrapper"
       style={{
         minHeight: '100vh',
         width: '100%',
+        maxWidth: '100%',
         display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'center' : 'stretch',
+        justifyContent: isMobile ? 'center' : 'flex-start',
         background: '#0C1012',
         color: '#FFFFFF',
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        overflowX: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* =========================================================================
-          LEFT PROMOTIONAL SECTION (Desktop / Tablet)
+          LEFT PROMOTIONAL SECTION (Desktop / Tablet only)
           Background: #0C1012 (Deep rich dark)
       ========================================================================== */}
-      <div
-        className="login-promo-section"
-        style={{
-          flex: '1.1',
-          background: '#0C1012',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '48px 56px',
-          position: 'relative',
-          overflow: 'hidden',
-          borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-        }}
-      >
+      {!isMobile && (
+        <div
+          className="login-promo-section"
+          style={{
+            flex: '1.1',
+            background: '#0C1012',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding: '48px 56px',
+            position: 'relative',
+            overflow: 'hidden',
+            borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+            boxSizing: 'border-box',
+          }}
+        >
         {/* Subtle Background Glows */}
         <div
           style={{
@@ -390,6 +420,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
           </div>
         </div>
       </div>
+      )}
 
       {/* =========================================================================
           RIGHT AUTHENTICATION SECTION (Desktop & Mobile)
@@ -398,27 +429,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
       <div
         className="login-auth-section"
         style={{
-          flex: '0.9',
-          background: '#1F1F1F',
+          flex: isMobile ? '1 1 100%' : '0.9',
+          width: '100%',
+          maxWidth: '100%',
+          background: isMobile ? '#0C1012' : '#1F1F1F',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '40px 24px',
+          padding: isMobile ? '32px 16px' : '40px 24px',
           position: 'relative',
-          minWidth: '320px',
+          boxSizing: 'border-box',
         }}
       >
         {/* Mobile Header (Visible on smaller viewports) */}
-        <div
-          className="login-mobile-brand"
-          style={{
-            display: 'none',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '24px',
-          }}
-        >
+        {isMobile && (
+          <div
+            className="login-mobile-brand"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '24px',
+            }}
+          >
           <div
             style={{
               width: '32px',
@@ -433,7 +467,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
             <Sparkles size={18} color="#fff" />
           </div>
           <span style={{ fontSize: '20px', fontWeight: 800 }}>VibeSocial</span>
-        </div>
+          </div>
+        )}
 
         {/* Auth Form Container Card */}
         <div

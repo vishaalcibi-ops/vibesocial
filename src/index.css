@@ -1267,13 +1267,90 @@ a {
 /* ==========================================================================
    VibeSocial — Instagram-Inspired Landing / Login Responsive Styles
    ========================================================================== */
-@media (max-width: 900px) {
+.login-page-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  background: #0C1012;
+  color: #FFFFFF;
+  position: relative;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.login-promo-section {
+  flex: 1.1;
+  background: #0C1012;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 56px;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.login-auth-section {
+  flex: 0.9;
+  width: 100%;
+  background: #1F1F1F;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px), (max-device-width: 1024px) {
+  .login-page-wrapper {
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    background: #0C1012 !important;
+    padding: 0 !important;
+  }
   .login-promo-section {
     display: none !important;
+  }
+  .login-auth-section {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 32px 16px !important;
+    background: transparent !important;
   }
   .login-mobile-brand {
     display: flex !important;
   }
+}
+
+body.platform-android .login-page-wrapper {
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  background: #0C1012 !important;
+}
+
+body.platform-android .login-promo-section {
+  display: none !important;
+}
+
+body.platform-android .login-auth-section {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  padding: 24px 16px !important;
+  background: transparent !important;
+}
+
+body.platform-android .login-mobile-brand {
+  display: flex !important;
 }
 
 /* ==========================================================================
