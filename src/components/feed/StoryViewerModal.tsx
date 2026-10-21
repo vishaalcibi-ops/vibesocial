@@ -149,6 +149,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 120 }}>
       <div
+        className="story-viewer-card"
         style={{
           width: '100%',
           maxWidth: '430px',

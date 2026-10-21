@@ -8,6 +8,8 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { Sidebar } from './components/navigation/Sidebar'
 import { MobileNav } from './components/navigation/MobileNav'
+import { AndroidHeader } from './components/navigation/AndroidHeader'
+import { usePlatform } from './hooks/usePlatform'
 import { FeedView } from './components/feed/FeedView'
 import { SearchView } from './components/search/SearchView'
 import { ExploreView } from './components/explore/ExploreView'
@@ -103,6 +105,7 @@ const VibeSocialApp: React.FC = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
   const [feedRefreshKey, setFeedRefreshKey] = useState(0)
   const { theme } = useTheme()
+  const { isAndroid } = usePlatform()
 
   // Native Capacitor lifecycle: hide splash screen and theme status bar
   useEffect(() => {
@@ -347,17 +350,38 @@ const VibeSocialApp: React.FC = () => {
   const activeProfileUserId = selectedProfileId || user.id
 
   return (
-    <div className="app-container">
-      {/* Desktop/Tablet Sidebar Navigation */}
-      <Sidebar
-        currentTab={currentTab}
-        onTabChange={handleTabChange}
-        onOpenCreateMenu={() => setShowCreateMenu(true)}
-        onOpenAuth={() => setShowAuthModal(true)}
-        onOpenReport={() => setShowGlobalReport(true)}
-        unreadMessagesCount={unreadMessagesCount}
-        unreadNotificationsCount={unreadNotificationsCount}
-      />
+    <div className={`app-container ${isAndroid ? 'android-mode' : 'web-mode'}`}>
+      {/* Dedicated Native Android Header (Top Navigation & Status Bar) */}
+      {isAndroid && (
+        <AndroidHeader
+          currentTab={currentTab}
+          selectedProfileId={selectedProfileId}
+          onTabChange={handleTabChange}
+          onBack={() => {
+            if (selectedProfileId) {
+              setSelectedProfileId(null)
+            } else if (currentTab !== 'feed') {
+              handleTabChange('feed')
+            }
+          }}
+          unreadNotificationsCount={unreadNotificationsCount}
+          unreadMessagesCount={unreadMessagesCount}
+          onOpenSettings={() => handleTabChange('settings')}
+        />
+      )}
+
+      {/* Desktop/Tablet Sidebar Navigation (Web only) */}
+      {!isAndroid && (
+        <Sidebar
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
+          onOpenCreateMenu={() => setShowCreateMenu(true)}
+          onOpenAuth={() => setShowAuthModal(true)}
+          onOpenReport={() => setShowGlobalReport(true)}
+          unreadMessagesCount={unreadMessagesCount}
+          unreadNotificationsCount={unreadNotificationsCount}
+        />
+      )}
 
       {/* Main Content Area */}
       <main className="main-wrapper">
