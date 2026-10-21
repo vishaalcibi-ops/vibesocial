@@ -105,6 +105,10 @@ export const NotesTray: React.FC<NotesTrayProps> = ({
     <div
       className="notes-tray-container"
       style={{
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
         padding: compact ? '8px 12px 14px' : '12px 16px 18px',
         borderBottom: '1px solid var(--border-subtle)',
         background: 'var(--bg-card)',
@@ -116,11 +120,16 @@ export const NotesTray: React.FC<NotesTrayProps> = ({
         style={{
           display: 'flex',
           gap: '16px',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           overflowX: 'auto',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           paddingTop: '28px', // Space for floating thought bubbles
           paddingBottom: '4px',
+          paddingLeft: '6px',
+          paddingRight: '6px',
           alignItems: 'flex-start',
         }}
       >

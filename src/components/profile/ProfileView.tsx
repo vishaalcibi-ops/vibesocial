@@ -274,6 +274,235 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     )
   }
 
+  const renderStatsCounters = (className = '') => (
+    <div className={`profile-stats-row ${className}`}>
+      <div className="stat-item">
+        <strong>{posts.length}</strong>
+        <span>posts</span>
+      </div>
+      <div
+        className="stat-item"
+        onClick={() => {
+          setFollowModalTab('followers')
+          setShowFollowModal(true)
+        }}
+        style={{ cursor: 'pointer' }}
+        title="View followers"
+      >
+        <strong>{stats.followers.toLocaleString()}</strong>
+        <span>followers</span>
+      </div>
+      <div
+        className="stat-item"
+        onClick={() => {
+          setFollowModalTab('following')
+          setShowFollowModal(true)
+        }}
+        style={{ cursor: 'pointer' }}
+        title="View following"
+      >
+        <strong>{stats.following.toLocaleString()}</strong>
+        <span>following</span>
+      </div>
+    </div>
+  )
+
+  const renderActionButtons = () => {
+    if (isMe) {
+      return (
+        <div className="profile-action-buttons">
+          <button
+            className="btn-secondary"
+            onClick={() => setShowEditModal(true)}
+            aria-label="Edit Profile"
+          >
+            <span>Edit Profile</span>
+          </button>
+
+          <button
+            className="btn-secondary"
+            onClick={() => setShowCloseFriendsModal(true)}
+            title="Close Friends List"
+            aria-label="Close Friends"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              borderColor: 'rgba(16, 185, 129, 0.4)',
+              background: 'rgba(16, 185, 129, 0.08)',
+              color: '#10b981',
+              fontWeight: 600,
+            }}
+          >
+            <Star size={14} fill="#10b981" />
+            <span>Close Friends</span>
+          </button>
+
+          <button
+            className="btn-secondary"
+            onClick={() => setShowRecentViewsModal(true)}
+            title="Recent Profile Visitors"
+            aria-label="Profile Visitors"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontWeight: 600,
+            }}
+          >
+            <Eye size={14} />
+            <span>Recent Views</span>
+          </button>
+
+          {onOpenSettings && (
+            <button
+              className="btn-secondary"
+              onClick={onOpenSettings}
+              title="Account Settings"
+              aria-label="Account Settings"
+            >
+              <Settings size={15} />
+            </button>
+          )}
+          <button
+            className="btn-secondary"
+            onClick={handleShareProfile}
+            title="Share profile"
+            aria-label="Share profile"
+          >
+            <Share2 size={15} />
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <div className="profile-action-buttons" style={{ position: 'relative' }}>
+        <button
+          className={isFollowing || hasRequested ? 'btn-secondary' : 'btn-primary'}
+          onClick={handleFollowToggle}
+          disabled={isBlocked}
+        >
+          {isFollowing ? 'Following' : hasRequested ? 'Requested' : 'Follow'}
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => onStartMessageWithUser(userId)}
+          disabled={isBlocked}
+        >
+          <Send size={15} />
+          <span>Message</span>
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={handleShareProfile}
+          title="Share profile"
+          aria-label="Share profile"
+        >
+          <Share2 size={15} />
+        </button>
+
+        <div style={{ position: 'relative' }}>
+          <button
+            className="btn-secondary"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            title="More profile options"
+            aria-label="More profile options"
+          >
+            <MoreHorizontal size={15} />
+          </button>
+
+          {showUserMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '36px',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-lg)',
+                zIndex: 60,
+                width: '180px',
+                overflow: 'hidden',
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowUserMenu(false)
+                  handleBlockToggle()
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#ef4444',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <UserX size={14} />
+                <span>{isBlocked ? 'Unblock' : 'Block User'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserMenu(false)
+                  handleRestrictToggle()
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <Slash size={14} />
+                <span>{isRestricted ? 'Unrestrict' : 'Restrict User'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserMenu(false)
+                  setShowReportModal(true)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#ef4444',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <ShieldAlert size={14} />
+                <span>Report</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="profile-view">
       {/* Toast Feedback */}
@@ -305,11 +534,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Profile Header */}
       <div className="profile-header">
-        <img
-          src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'}
-          alt={profile.username}
-          className="profile-avatar-large"
-        />
+        <div className="profile-header-top-row">
+          <img
+            src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'}
+            alt={profile.username}
+            className="profile-avatar-large"
+          />
+          {/* Mobile-only Stats: Positioned beside avatar on phone screens */}
+          {renderStatsCounters('mobile-only-stats')}
+        </div>
 
         <div className="profile-details">
           <div className="profile-top-bar">
@@ -340,223 +573,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               )}
             </div>
 
-            {isMe ? (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button
-                  className="btn-secondary"
-                  onClick={() => setShowEditModal(true)}
-                  aria-label="Edit Profile"
-                >
-                  <span>Edit Profile</span>
-                </button>
-
-                <button
-                  className="btn-secondary"
-                  onClick={() => setShowCloseFriendsModal(true)}
-                  title="Close Friends List"
-                  aria-label="Close Friends"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    borderColor: 'rgba(16, 185, 129, 0.4)',
-                    background: 'rgba(16, 185, 129, 0.08)',
-                    color: '#10b981',
-                    fontWeight: 600,
-                  }}
-                >
-                  <Star size={14} fill="#10b981" />
-                  <span>Close Friends</span>
-                </button>
-
-                <button
-                  className="btn-secondary"
-                  onClick={() => setShowRecentViewsModal(true)}
-                  title="Recent Profile Visitors"
-                  aria-label="Profile Visitors"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    fontWeight: 600,
-                  }}
-                >
-                  <Eye size={14} />
-                  <span>Recent Views</span>
-                </button>
-
-                {onOpenSettings && (
-                  <button
-                    className="btn-secondary"
-                    onClick={onOpenSettings}
-                    title="Account Settings"
-                    aria-label="Account Settings"
-                  >
-                    <Settings size={15} />
-                  </button>
-                )}
-                <button
-                  className="btn-secondary"
-                  onClick={handleShareProfile}
-                  title="Share profile"
-                  aria-label="Share profile"
-                >
-                  <Share2 size={15} />
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
-                <button
-                  className={isFollowing || hasRequested ? 'btn-secondary' : 'btn-primary'}
-                  onClick={handleFollowToggle}
-                  disabled={isBlocked}
-                >
-                  {isFollowing ? 'Following' : hasRequested ? 'Requested' : 'Follow'}
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => onStartMessageWithUser(userId)}
-                  disabled={isBlocked}
-                >
-                  <Send size={15} />
-                  <span>Message</span>
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={handleShareProfile}
-                  title="Share profile"
-                  aria-label="Share profile"
-                >
-                  <Share2 size={15} />
-                </button>
-
-                <div style={{ position: 'relative' }}>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    title="More profile options"
-                    aria-label="More profile options"
-                  >
-                    <MoreHorizontal size={15} />
-                  </button>
-
-                  {showUserMenu && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '36px',
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-md)',
-                        boxShadow: 'var(--shadow-lg)',
-                        zIndex: 60,
-                        width: '180px',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <button
-                        onClick={handleRestrictToggle}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          width: '100%',
-                          padding: '10px 14px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: 'var(--text-primary)',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <Slash size={14} />
-                        <span>{isRestricted ? 'Unrestrict' : 'Restrict'}</span>
-                      </button>
-                      <button
-                        onClick={handleBlockToggle}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          width: '100%',
-                          padding: '10px 14px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: '#ef4444',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <UserX size={14} />
-                        <span>{isBlocked ? 'Unblock' : 'Block'}</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowUserMenu(false)
-                          setShowReportModal(true)
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          width: '100%',
-                          padding: '10px 14px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: '#ef4444',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <ShieldAlert size={14} />
-                        <span>Report</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Stats Counters (Clickable for Followers & Following) */}
-          <div className="profile-stats-row">
-            <div className="stat-item">
-              <strong>{posts.length}</strong>
-              <span>posts</span>
-            </div>
-            <div
-              className="stat-item"
-              onClick={() => {
-                setFollowModalTab('followers')
-                setShowFollowModal(true)
-              }}
-              style={{ cursor: 'pointer' }}
-              title="View followers"
-            >
-              <strong>{stats.followers.toLocaleString()}</strong>
-              <span>followers</span>
-            </div>
-            <div
-              className="stat-item"
-              onClick={() => {
-                setFollowModalTab('following')
-                setShowFollowModal(true)
-              }}
-              style={{ cursor: 'pointer' }}
-              title="View following"
-            >
-              <strong>{stats.following.toLocaleString()}</strong>
-              <span>following</span>
+            {/* Desktop Action Buttons: Inside top-bar on desktop */}
+            <div className="desktop-only-actions">
+              {renderActionButtons()}
             </div>
           </div>
 
+          {/* Desktop Stats Row: Positioned below username on desktop */}
+          {renderStatsCounters('desktop-only-stats')}
           {/* Bio & Details */}
           <div className="profile-bio-block">
             {profile.full_name && <div className="profile-full-name">{profile.full_name}</div>}
@@ -571,6 +595,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 {profile.website.replace(/^https?:\/\//, '')}
               </a>
             )}
+          </div>
+          {/* Mobile Action Buttons: Full-width row below bio on phone screens */}
+          <div className="mobile-only-actions">
+            {renderActionButtons()}
           </div>
         </div>
       </div>

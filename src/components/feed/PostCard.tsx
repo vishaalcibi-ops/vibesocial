@@ -250,7 +250,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     fontWeight: 600,
                     color: isTrackPlaying ? 'var(--color-pink, #e1306c)' : 'var(--text-secondary)',
                     cursor: 'pointer',
-                    maxWidth: '220px',
+                    maxWidth: 'min(200px, 45vw)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
