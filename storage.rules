@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Avatars: Public read, owner write (max 10MB, images only)
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId)
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isOwner(userId);
+    }
+
+    // Posts: Public read, owner write (max 50MB, images or videos)
+    match /posts/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId)
+        && request.resource.size < 50 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*'));
+      allow delete: if isOwner(userId);
+    }
+
+    // Stories: Public read, owner write (max 50MB)
+    match /stories/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId)
+        && request.resource.size < 50 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*'));
+      allow delete: if isOwner(userId);
+    }
+
+    // Reels: Public read, owner write (max 100MB, videos only)
+    match /reels/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId)
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType.matches('video/.*');
+      allow delete: if isOwner(userId);
+    }
+
+    // Direct Messages Media: Authenticated users only (max 25MB)
+    match /messages/{conversationId}/{fileName} {
+      allow read, write: if isAuthenticated()
+        && request.resource.size < 25 * 1024 * 1024;
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,1179 @@
+/* ==========================================================================
+   VibeSocial — Instagram-Inspired Clean Modern Theme
+   ========================================================================== */
+
+:root {
+  /* Instagram Native Typography Stack */
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Classic Instagram Light Theme (Default) */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #FAFAFA;
+  --bg-elevated: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F8F9FA;
+  --bg-input: #FAFAFA;
+  --bg-glass: rgba(255, 255, 255, 0.96);
+  --bg-overlay: rgba(0, 0, 0, 0.65);
+
+  --border-subtle: #DBDBDB;
+  --border-light: #EFEFEF;
+  --border-strong: #C7C7C7;
+  --border-focus: #262626;
+
+  --text-primary: #262626;
+  --text-secondary: #737373;
+  --text-muted: #8E8E8E;
+  --text-inverse: #FFFFFF;
+
+  /* Signature Instagram Colors */
+  --color-link: #0095F6;
+  --color-link-hover: #1877F2;
+  --color-like: #ED4956;
+  --color-like-bg: rgba(237, 73, 86, 0.08);
+  --color-save: #262626;
+  --color-verified: #0095F6;
+  --color-pink: #E1306C;
+  --color-purple: #C13584;
+
+  /* Instagram Signature Gradient for Logo, Stories & Selected Accents */
+  --gradient-story: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  --gradient-brand: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 100%);
+
+  /* Elevation & Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  /* Dimensions & Spacing */
+  --sidebar-width: 244px;
+  --sidebar-collapsed-width: 72px;
+  --bottom-nav-height: 52px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   Instagram Dark Theme (Persisted & Toggleable)
+   ========================================================================== */
+[data-theme="dark"] {
+  --bg-primary: #000000;
+  --bg-secondary: #000000;
+  --bg-elevated: #121212;
+  --bg-card: #000000;
+  --bg-card-hover: #161616;
+  --bg-input: #121212;
+  --bg-glass: rgba(0, 0, 0, 0.96);
+  --bg-overlay: rgba(0, 0, 0, 0.85);
+
+  --border-subtle: #262626;
+  --border-light: #1A1A1A;
+  --border-strong: #363636;
+  --border-focus: #F5F5F5;
+
+  --text-primary: #F5F5F5;
+  --text-secondary: #A8A8A8;
+  --text-muted: #737373;
+  --text-inverse: #000000;
+
+  --color-link: #3897F0;
+  --color-link-hover: #70B4F5;
+  --color-like: #ED4956;
+  --color-like-bg: rgba(237, 73, 86, 0.15);
+  --color-save: #F5F5F5;
+  --color-verified: #3897F0;
+  --color-pink: #E1306C;
+  --color-purple: #C13584;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.8);
+}
+
+/* ==========================================================================
+   Base Styles & Reset
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+  font-size: 14px;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  color: var(--text-primary);
+  outline: none;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 14px;
+  transition: border-color var(--transition-fast);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus, textarea:focus {
+  border-color: var(--border-focus);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Custom Minimalist Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ==========================================================================
+   Main Layout Structure
+   ========================================================================== */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+/* Left Sidebar Navigation (Desktop) */
+.app-sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  padding: 24px 12px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  transition: width var(--transition-normal);
+}
+
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 28px 14px;
+  user-select: none;
+}
+
+.brand-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--gradient-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.brand-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  color: var(--text-primary);
+}
+
+.nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-weight: 400;
+  font-size: 15px;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  position: relative;
+  text-align: left;
+  width: 100%;
+}
+
+.nav-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.nav-item.active {
+  font-weight: 700;
+}
+
+.nav-item.active svg {
+  stroke-width: 2.6px;
+}
+
+.nav-item .badge {
+  margin-left: auto;
+  background: var(--color-like);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+.sidebar-bottom-controls {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Main Content Wrapper */
+.main-wrapper {
+  margin-left: var(--sidebar-width);
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 24px 20px 80px 20px;
+  background-color: var(--bg-primary);
+  transition: margin-left var(--transition-normal);
+}
+
+/* Feed View */
+.feed-container {
+  width: 100%;
+  max-width: 470px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Stories Bar */
+.stories-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px 12px;
+  overflow-x: auto;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  scrollbar-width: none;
+}
+
+.stories-section::-webkit-scrollbar {
+  display: none;
+}
+
+.story-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.story-item:hover {
+  transform: scale(1.02);
+}
+
+.story-ring-container {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  padding: 2.5px;
+  position: relative;
+  background: var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast);
+}
+
+.story-ring-container.has-unviewed {
+  background: var(--gradient-story);
+}
+
+.story-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bg-primary);
+  background: var(--bg-secondary);
+}
+
+.story-username {
+  font-size: 12px;
+  color: var(--text-primary);
+  max-width: 66px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.create-story-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  background: var(--color-link);
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+/* ==========================================================================
+   Feed Post Card (Instagram Standard)
+   ========================================================================== */
+.post-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.post-header {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.post-author-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.author-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.author-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-username {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.verified-icon {
+  color: var(--color-verified);
+  font-size: 11px;
+}
+
+.post-location {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.post-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.post-media-container {
+  width: 100%;
+  position: relative;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.post-media-img {
+  width: 100%;
+  max-height: 585px;
+  object-fit: contain;
+  display: block;
+}
+
+.post-media-video {
+  width: 100%;
+  max-height: 585px;
+  background: #000000;
+}
+
+.post-actions {
+  padding: 10px 14px 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.post-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-btn {
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
+
+.action-btn:hover {
+  transform: scale(1.08);
+  opacity: 0.8;
+}
+
+.action-btn.liked {
+  color: var(--color-like);
+}
+
+.action-btn.saved {
+  color: var(--color-save);
+}
+
+.post-content-body {
+  padding: 0 14px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.likes-count {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.post-caption {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.caption-username {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-right: 6px;
+}
+
+.view-comments-btn {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-align: left;
+  margin-top: 2px;
+}
+
+.view-comments-btn:hover {
+  color: var(--text-primary);
+}
+
+.add-comment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.comment-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  padding: 4px 0;
+  color: var(--text-primary);
+}
+
+.comment-submit-btn {
+  color: var(--color-link);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.comment-submit-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ==========================================================================
+   Buttons & Core Components
+   ========================================================================== */
+.btn-primary {
+  background: var(--color-link);
+  color: white;
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.btn-primary:hover {
+  background: var(--color-link-hover);
+}
+
+.btn-secondary {
+  background: var(--border-light);
+  color: var(--text-primary);
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.btn-secondary:hover {
+  background: var(--border-subtle);
+}
+
+/* ==========================================================================
+   Reels Vertical Video View (Instagram Reels Style)
+   ========================================================================== */
+.reels-container {
+  width: 100%;
+  max-width: 440px;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 0 auto;
+}
+
+.reel-card {
+  width: 100%;
+  height: 100%;
+  max-height: 780px;
+  background: #000000;
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+}
+
+.reel-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reel-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, transparent 40%, rgba(0,0,0,0.85) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  pointer-events: none;
+}
+
+.reel-actions-column {
+  position: absolute;
+  right: 12px;
+  bottom: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.reel-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+}
+
+.reel-action-btn:hover {
+  transform: scale(1.1);
+}
+
+.reel-action-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reel-bottom-info {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 80%;
+  pointer-events: auto;
+  color: white;
+}
+
+.reel-author-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reel-follow-btn {
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reel-follow-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.reel-audio-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ==========================================================================
+   Explore Grid (Instagram 3-Column Square Layout)
+   ========================================================================== */
+.explore-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  width: 100%;
+  max-width: 935px;
+  margin: 0 auto;
+}
+
+.explore-item {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+
+.explore-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-normal);
+}
+
+.explore-item:hover .explore-img {
+  transform: scale(1.03);
+}
+
+.explore-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.explore-item:hover .explore-overlay {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Profile Page (Instagram Standard Profile Header & Tabs)
+   ========================================================================== */
+.profile-view {
+  width: 100%;
+  max-width: 935px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin: 0 auto;
+}
+
+.profile-header {
+  display: flex;
+  gap: 64px;
+  align-items: flex-start;
+  padding: 10px 20px 20px 20px;
+}
+
+.profile-avatar-large {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.profile-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.profile-username-heading {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.profile-stats-row {
+  display: flex;
+  gap: 36px;
+  font-size: 15px;
+}
+
+.stat-item strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.stat-item span {
+  color: var(--text-primary);
+  margin-left: 4px;
+}
+
+.profile-bio-block {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.profile-full-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.profile-bio-text {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  margin-top: 2px;
+}
+
+.profile-website {
+  color: var(--color-link);
+  font-weight: 600;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.profile-website:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Direct Messages View (Instagram Direct Two-Column Layout)
+   ========================================================================== */
+.messages-container {
+  width: 100%;
+  max-width: 935px;
+  height: calc(100vh - 64px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.conversations-sidebar {
+  width: 350px;
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.conversations-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.conversations-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+  transition: background var(--transition-fast);
+}
+
+.conversation-item:hover, .conversation-item.active {
+  background: var(--bg-card-hover);
+}
+
+.chat-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.chat-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-primary);
+}
+
+.messages-scroll {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-bubble {
+  max-width: 65%;
+  padding: 9px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.message-bubble.mine {
+  align-self: flex-end;
+  background: var(--color-link);
+  color: white;
+}
+
+.message-bubble.theirs {
+  align-self: flex-start;
+  background: var(--border-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.chat-input-bar {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-primary);
+}
+
+/* Config Setup Banner */
+.config-banner {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.config-banner-title {
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.config-banner-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Modals & Dialogs (Instagram Clean White Popups)
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-content {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 540px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: scaleUp 0.15s ease-out;
+}
+
+.modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* ==========================================================================
+   Mobile Bottom Navigation
+   ========================================================================== */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-nav-height);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-subtle);
+  z-index: 50;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 10px;
+}
+
+/* Shimmer Loading Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--border-light) 25%, var(--bg-card-hover) 50%, var(--border-light) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
+@media (max-width: 1200px) {
+  .app-sidebar {
+    width: var(--sidebar-collapsed-width);
+    padding: 24px 8px;
+  }
+  .brand-title, .nav-item span, .brand-header .brand-title {
+    display: none;
+  }
+  .brand-header {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
+  }
+  .main-wrapper {
+    margin-left: var(--sidebar-collapsed-width);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-sidebar {
+    display: none;
+  }
+  .mobile-bottom-nav {
+    display: flex;
+  }
+  .main-wrapper {
+    margin-left: 0;
+    padding: 12px 10px 70px 10px;
+  }
+  .post-card {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  .explore-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+  .profile-header {
+    gap: 24px;
+    padding: 10px 12px;
+  }
+  .profile-avatar-large {
+    width: 80px;
+    height: 80px;
+  }
+  .profile-stats-row {
+    gap: 18px;
+  }
+  .messages-container {
+    height: calc(100vh - 120px);
+  }
+}
+
+/* ==========================================================================
+   VibeSocial — Instagram-Inspired Landing / Login Responsive Styles
+   ========================================================================== */
+@media (max-width: 900px) {
+  .login-promo-section {
+    display: none !important;
+  }
+  .login-mobile-brand {
+    display: flex !important;
+  }
+}
+
+/* ==========================================================================
+   Instagram Notes & Music Animation Keyframes
+   ========================================================================== */
+@keyframes spinRecord {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes waveBar {
+  0% {
+    height: 3px;
+  }
+  100% {
+    height: 12px;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
