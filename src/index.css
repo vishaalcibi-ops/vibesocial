@@ -107,6 +107,8 @@ html {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 *, *::before, *::after {
@@ -119,16 +121,14 @@ body {
   font-family: var(--font-main);
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  min-height: 100vh;
+  min-height: 100%;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
   position: relative;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: contain;
 }
 
 button {
@@ -192,7 +192,6 @@ a {
   max-width: 100%;
   background-color: var(--bg-primary);
   position: relative;
-  overflow-x: hidden;
 }
 
 /* Left Sidebar Navigation (Desktop) */
@@ -1411,7 +1410,6 @@ body.platform-android .main-wrapper {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  overflow-x: hidden;
   box-sizing: border-box;
 }
 
