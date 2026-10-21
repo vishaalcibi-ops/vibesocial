@@ -19,6 +19,10 @@ public class MainActivity extends BridgeActivity {
                 settings.setSupportMultipleWindows(true);
                 settings.setDomStorageEnabled(true);
                 settings.setDatabaseEnabled(true);
+
+                android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                cookieManager.setAcceptCookie(true);
+                cookieManager.setAcceptThirdPartyCookies(this.bridge.getWebView(), true);
             }
         } catch (Exception e) {
             e.printStackTrace();
