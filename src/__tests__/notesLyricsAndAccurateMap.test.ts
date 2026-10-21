@@ -188,5 +188,5 @@ describe('Accurate Map Places & Real Street Geocoding', () => {
     const results = await mapService.searchPlacesAndStreets('anna salai', 13.0827, 80.2707, 5)
     // Even if offline/network restricted in test runner, function returns array without throwing
     expect(Array.isArray(results)).toBe(true)
-  })
+  }, 10000)
 })

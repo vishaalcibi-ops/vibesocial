@@ -68,6 +68,13 @@ export const authService = {
     return data
   },
 
+  async checkRedirectResult(): Promise<{ user: any | null; error?: Error } | null> {
+    if (getBackendProvider() === 'firebase') {
+      return authServiceFirebase.checkRedirectResult()
+    }
+    return null
+  },
+
   async signOut() {
     if (getBackendProvider() === 'firebase') {
       return authServiceFirebase.signOut()

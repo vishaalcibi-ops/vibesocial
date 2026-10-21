@@ -36,7 +36,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
 
   const myGroup = user ? storyGroups.find((g) => g.authorId === user.id) : null
   const otherGroups = user ? storyGroups.filter((g) => g.authorId !== user.id) : storyGroups
-  const isMyCloseFriends = Boolean(myGroup?.stories.some((s) => s.is_close_friends))
+  const isMyCloseFriends = Boolean(myGroup?.stories?.some((s) => s.is_close_friends))
 
   return (
     <div className="stories-section" style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -117,7 +117,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
 
       {/* Other Users' Active Story Groups */}
       {otherGroups.map((group) => {
-        const isCloseFriends = Boolean(group.stories.some((s) => s.is_close_friends))
+        const isCloseFriends = Boolean(group.stories?.some((s) => s.is_close_friends))
         return (
           <div
             key={group.authorId}

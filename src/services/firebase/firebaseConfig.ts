@@ -21,8 +21,35 @@ const clean = (val?: string | null) => (val ? val.trim().replace(/^["']|["']$/g,
 const localApiKey = typeof window !== 'undefined' ? localStorage.getItem('vibesocial_fb_api_key') : null
 const localAppId = typeof window !== 'undefined' ? localStorage.getItem('vibesocial_fb_app_id') : null
 
+// Compute authDomain dynamically:
+// When running in a web browser on Vercel or a custom public domain, authDomain must match
+// window.location.hostname so third-party storage partitioning (CHIPS / ITP) does not block
+// sessionStorage during signInWithRedirect and OAuth flows (Firebase official redirect best practices).
+export const resolveAuthDomain = (): string => {
+  const explicit = clean(envAuthDomain)
+  if (explicit && explicit !== 'vibesocial-app-906a8.firebaseapp.com') {
+    return explicit
+  }
+
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    const host = window.location.hostname.toLowerCase()
+    // If running in a web browser on Vercel, Netlify, or any custom domain (exclude localhost and emulator)
+    if (
+      host &&
+      host !== 'localhost' &&
+      host !== '127.0.0.1' &&
+      !host.endsWith('.local') &&
+      !host.includes('capacitor')
+    ) {
+      return host
+    }
+  }
+
+  return 'vibesocial-app-906a8.firebaseapp.com'
+}
+
 export const firebaseApiKey = clean(envApiKey && envApiKey !== 'your-firebase-api-key' ? envApiKey : localApiKey)
-export const firebaseAuthDomain = clean(envAuthDomain) || 'vibesocial-app-906a8.firebaseapp.com'
+export const firebaseAuthDomain = resolveAuthDomain()
 export const firebaseProjectId = clean(envProjectId) || 'vibesocial-app-906a8'
 export const firebaseStorageBucket = clean(envStorageBucket) || 'vibesocial-app-906a8.firebasestorage.app'
 export const firebaseSenderId = clean(envSenderId)

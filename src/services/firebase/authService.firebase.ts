@@ -8,6 +8,8 @@ import {
   updateProfile as firebaseUpdateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   deleteUser,
 } from 'firebase/auth'
 import type { User } from 'firebase/auth'
@@ -49,6 +51,12 @@ const formatFirebaseError = (err: any): Error => {
       return new Error('Google sign-in was cancelled.')
     case 'auth/popup-blocked':
       return new Error('Popup blocked by browser. Please allow popups for this site and try again.')
+    case 'auth/missing-initial-state':
+      return new Error(
+        'Browser storage restriction: missing initial state. Please enable cookies/storage or check domain proxy settings.'
+      )
+    case 'auth/redirect-cancelled-by-user':
+      return new Error('Google sign-in was cancelled.')
     case 'auth/unauthorized-domain':
       return new Error('Domain unauthorized for Google Sign-In. Add localhost / your hosting domain to Firebase Console > Authentication > Settings > Authorized domains.')
     case 'auth/account-exists-with-different-credential':
@@ -59,6 +67,47 @@ const formatFirebaseError = (err: any): Error => {
       return new Error(msg || 'Authentication failed. Please try again.')
   }
 }
+
+export const ensureUserProfileExists = async (user: User): Promise<void> => {
+  try {
+    const userDocRef = doc(db, 'users', user.uid)
+    const userDoc = await getDoc(userDocRef)
+    if (!userDoc.exists()) {
+      const rawName = user.displayName || user.email?.split('@')[0] || 'user'
+      const cleanUsername =
+        rawName
+          .toLowerCase()
+          .replace(/[^a-z0-9_.]/g, '')
+          .slice(0, 25) || `user_${user.uid.slice(0, 5)}`
+
+      const profileData: Profile = {
+        id: user.uid,
+        username: cleanUsername,
+        full_name: user.displayName || 'Vibe User',
+        bio: '',
+        avatar_url: user.photoURL || null,
+        website: '',
+        is_verified: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      await setDoc(userDocRef, profileData)
+    }
+  } catch (profileErr) {
+    console.warn('Profile self-healing deferred until rules published:', profileErr)
+  }
+}
+
+const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return (
+    /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+    (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua))
+  )
+}
+
+let redirectCheckPromise: Promise<{ user: User | null; error?: Error } | null> | null = null
 
 export const authServiceFirebase = {
   async signUp(email: string, password: string, username: string, fullName: string) {
@@ -112,28 +161,7 @@ export const authServiceFirebase = {
       const user = cred.user
 
       // Self-heal: ensure user profile document exists in Firestore
-      try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid))
-        if (!userDoc.exists()) {
-          const cleanUsername = (user.displayName || user.email?.split('@')[0] || 'user')
-            .toLowerCase()
-            .replace(/[^a-z0-9_.]/g, '')
-          const profileData: Profile = {
-            id: user.uid,
-            username: cleanUsername || `user_${user.uid.slice(0, 5)}`,
-            full_name: user.displayName || 'Vibe User',
-            bio: '',
-            avatar_url: null,
-            website: '',
-            is_verified: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
-          await setDoc(doc(db, 'users', user.uid), profileData)
-        }
-      } catch (profileErr) {
-        console.warn('Profile sync on signIn deferred until rules published:', profileErr)
-      }
+      await ensureUserProfileExists(user)
 
       return { user }
     } catch (err: any) {
@@ -141,49 +169,85 @@ export const authServiceFirebase = {
     }
   },
 
-  async signInWithGoogle() {
+  /**
+   * Check and consume any pending redirect sign-in result on application startup.
+   * Caches the in-flight resolution promise to prevent duplicate listeners or races.
+   */
+  async checkRedirectResult(): Promise<{ user: User | null; error?: Error } | null> {
+    if (!isFirebaseConfigured()) return null
+    if (redirectCheckPromise) return redirectCheckPromise
+
+    redirectCheckPromise = (async () => {
+      try {
+        const result = await getRedirectResult(auth)
+        if (result && result.user) {
+          await ensureUserProfileExists(result.user)
+          return { user: result.user }
+        }
+        return null
+      } catch (err: any) {
+        if (
+          err?.code === 'auth/popup-closed-by-user' ||
+          err?.code === 'auth/cancelled-popup-request' ||
+          err?.code === 'auth/redirect-cancelled-by-user'
+        ) {
+          return null
+        }
+        console.warn('Google redirect resolution error:', err)
+        return { user: null, error: formatFirebaseError(err) }
+      }
+    })()
+
+    return redirectCheckPromise
+  },
+
+  async signInWithGoogle(): Promise<{ user: User | null; redirected?: boolean }> {
     if (!isFirebaseConfigured()) {
       throw new Error('Firebase credentials are not configured yet.')
     }
 
-    try {
-      const provider = new GoogleAuthProvider()
-      provider.setCustomParameters({ prompt: 'select_account' })
-      const cred = await signInWithPopup(auth, provider)
-      const user = cred.user
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
 
-      // Ensure user profile document exists in Firestore (do not overwrite existing profile)
+    const isMobile = isMobileDevice()
+
+    // 1. Desktop flow: Popup is fast, non-navigating, and keeps state
+    if (!isMobile) {
       try {
-        const userDocRef = doc(db, 'users', user.uid)
-        const userDoc = await getDoc(userDocRef)
-        if (!userDoc.exists()) {
-          const rawName = user.displayName || user.email?.split('@')[0] || 'user'
-          const cleanUsername =
-            rawName
-              .toLowerCase()
-              .replace(/[^a-z0-9_.]/g, '')
-              .slice(0, 25) || `user_${user.uid.slice(0, 5)}`
-
-          const profileData: Profile = {
-            id: user.uid,
-            username: cleanUsername,
-            full_name: user.displayName || 'Vibe User',
-            bio: '',
-            avatar_url: user.photoURL || null,
-            website: '',
-            is_verified: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
-          await setDoc(userDocRef, profileData)
+        const cred = await signInWithPopup(auth, provider)
+        await ensureUserProfileExists(cred.user)
+        return { user: cred.user }
+      } catch (err: any) {
+        if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+          throw new Error('Sign-in cancelled.')
         }
-      } catch (profileErr) {
-        console.warn('Google profile sync on signIn deferred until rules published:', profileErr)
+        throw formatFirebaseError(err)
+      }
+    }
+
+    // 2. Mobile flow: Try popup first; if popup is blocked or unsupported on mobile browser, fall back to redirect
+    try {
+      const cred = await signInWithPopup(auth, provider)
+      await ensureUserProfileExists(cred.user)
+      return { user: cred.user }
+    } catch (popupErr: any) {
+      const code = popupErr?.code
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/operation-not-supported-in-this-environment' ||
+        popupErr?.message?.includes('popup')
+      ) {
+        console.log('Mobile popup blocked/unsupported; executing supported signInWithRedirect...')
+        await signInWithRedirect(auth, provider)
+        return { user: null, redirected: true }
       }
 
-      return { user }
-    } catch (err: any) {
-      throw formatFirebaseError(err)
+      if (code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in cancelled.')
+      }
+
+      throw formatFirebaseError(popupErr)
     }
   },
 
@@ -249,6 +313,13 @@ export const authServiceFirebase = {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        let token = ''
+        try {
+          token = await firebaseUser.getIdToken()
+        } catch (tokenErr) {
+          console.warn('Deferred token retrieval in onAuthStateChanged:', tokenErr)
+        }
+
         callback({
           user: {
             id: firebaseUser.uid,
@@ -257,7 +328,7 @@ export const authServiceFirebase = {
               full_name: firebaseUser.displayName,
             },
           },
-          access_token: await firebaseUser.getIdToken(),
+          access_token: token,
         })
       } else {
         callback(null)

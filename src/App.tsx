@@ -29,6 +29,7 @@ import { ReportModal } from './components/common/ReportModal'
 import { AuthModal } from './components/auth/AuthModal'
 import { LoginPage } from './components/auth/LoginPage'
 import { SignupPage } from './components/auth/SignupPage'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { notificationService } from './services/notificationService'
 import { messageService } from './services/messageService'
 import { postService } from './services/postService'
@@ -216,16 +217,32 @@ const VibeSocialApp: React.FC = () => {
 
   // Fetch unread notifications & messages count
   useEffect(() => {
-    if (user) {
-      notificationService.getUnreadCount(user.id).then(setUnreadNotificationsCount)
-      const subNotifs = notificationService.subscribeToNotifications(user.id, () => {
-        setUnreadNotificationsCount((prev) => prev + 1)
-      })
+    if (user?.id) {
+      notificationService
+        .getUnreadCount(user.id)
+        .then(setUnreadNotificationsCount)
+        .catch(() => setUnreadNotificationsCount(0))
 
-      messageService.getUnreadCount(user.id).then(setUnreadMessagesCount)
+      let subNotifs: { unsubscribe: () => void } | undefined
+      try {
+        subNotifs = notificationService.subscribeToNotifications(user.id, () => {
+          setUnreadNotificationsCount((prev) => prev + 1)
+        })
+      } catch (err) {
+        console.warn('Could not subscribe to notifications:', err)
+      }
+
+      messageService
+        .getUnreadCount(user.id)
+        .then(setUnreadMessagesCount)
+        .catch(() => setUnreadMessagesCount(0))
 
       return () => {
-        subNotifs.unsubscribe()
+        if (subNotifs && typeof subNotifs.unsubscribe === 'function') {
+          try {
+            subNotifs.unsubscribe()
+          } catch {}
+        }
       }
     } else {
       setUnreadNotificationsCount(0)
@@ -235,10 +252,10 @@ const VibeSocialApp: React.FC = () => {
 
   // Update active status (last_seen) periodically
   useEffect(() => {
-    if (user) {
-      profileService.updateActiveStatus(user.id)
+    if (user?.id) {
+      profileService.updateActiveStatus(user.id).catch(() => {})
       const interval = setInterval(() => {
-        profileService.updateActiveStatus(user.id)
+        profileService.updateActiveStatus(user.id).catch(() => {})
       }, 60000)
       return () => clearInterval(interval)
     }
@@ -385,92 +402,94 @@ const VibeSocialApp: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="main-wrapper">
-        {currentTab === 'feed' && (
-          <FeedView
-            key={`feed-${feedRefreshKey}`}
-            onOpenCreatePost={() => {
-              setCreatePostInitialTab('post')
-              setShowCreatePost(true)
-            }}
-            onOpenCreateStory={() => setShowCreateStory(true)}
-            onSelectProfile={handleSelectProfile}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
+        <ErrorBoundary fallbackTitle="Content temporarily unavailable">
+          {currentTab === 'feed' && (
+            <FeedView
+              key={`feed-${feedRefreshKey}`}
+              onOpenCreatePost={() => {
+                setCreatePostInitialTab('post')
+                setShowCreatePost(true)
+              }}
+              onOpenCreateStory={() => setShowCreateStory(true)}
+              onSelectProfile={handleSelectProfile}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
 
-        {currentTab === 'search' && (
-          <SearchView
-            onSelectProfile={handleSelectProfile}
-            onStartMessageWithUser={handleStartMessageWithUser}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
+          {currentTab === 'search' && (
+            <SearchView
+              onSelectProfile={handleSelectProfile}
+              onStartMessageWithUser={handleStartMessageWithUser}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
 
-        {currentTab === 'explore' && (
-          <ExploreView
-            onSelectProfile={handleSelectProfile}
-            onSelectPost={(post) => setSelectedDetailPost(post)}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
+          {currentTab === 'explore' && (
+            <ExploreView
+              onSelectProfile={handleSelectProfile}
+              onSelectPost={(post) => setSelectedDetailPost(post)}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
 
-        {currentTab === 'reels' && (
-          <ReelsView
-            onSelectProfile={handleSelectProfile}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
+          {currentTab === 'reels' && (
+            <ReelsView
+              onSelectProfile={handleSelectProfile}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
 
-        {currentTab === 'messages' && (
-          <MessagesView
-            initialTargetUserId={messageTargetUserId}
-            onSelectProfile={handleSelectProfile}
-          />
-        )}
+          {currentTab === 'messages' && (
+            <MessagesView
+              initialTargetUserId={messageTargetUserId}
+              onSelectProfile={handleSelectProfile}
+            />
+          )}
 
-        {currentTab === 'notifications' && (
-          <NotificationsView
-            onSelectProfile={handleSelectProfile}
-            onStartMessageWithUser={handleStartMessageWithUser}
-            onSelectPost={(postId) => {
-              postService.getPostById(postId, user?.id).then((p) => {
-                if (p) setSelectedDetailPost(p)
-              })
-            }}
-          />
-        )}
+          {currentTab === 'notifications' && (
+            <NotificationsView
+              onSelectProfile={handleSelectProfile}
+              onStartMessageWithUser={handleStartMessageWithUser}
+              onSelectPost={(postId) => {
+                postService.getPostById(postId, user?.id).then((p) => {
+                  if (p) setSelectedDetailPost(p)
+                })
+              }}
+            />
+          )}
 
-        {currentTab === 'profile' && (
-          <ProfileView
-            userId={activeProfileUserId}
-            onStartMessageWithUser={handleStartMessageWithUser}
-            onOpenAuth={() => setShowAuthModal(true)}
-            onOpenSettings={() => handleTabChange('settings')}
-          />
-        )}
+          {currentTab === 'profile' && (
+            <ProfileView
+              userId={activeProfileUserId}
+              onStartMessageWithUser={handleStartMessageWithUser}
+              onOpenAuth={() => setShowAuthModal(true)}
+              onOpenSettings={() => handleTabChange('settings')}
+            />
+          )}
 
-        {currentTab === 'settings' && <SettingsView />}
+          {currentTab === 'settings' && <SettingsView />}
 
-        {currentTab === 'activity' && (
-          <ActivityView
-            onSelectProfile={handleSelectProfile}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
+          {currentTab === 'activity' && (
+            <ActivityView
+              onSelectProfile={handleSelectProfile}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
 
-        {currentTab === 'saved' && (
-          <SavedView
-            onSelectProfile={handleSelectProfile}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
+          {currentTab === 'saved' && (
+            <SavedView
+              onSelectProfile={handleSelectProfile}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
 
-        {currentTab === 'archive' && (
-          <ArchiveView
-            onBack={() => handleTabChange('profile')}
-            onPostClick={(post) => setSelectedDetailPost(post)}
-          />
-        )}
+          {currentTab === 'archive' && (
+            <ArchiveView
+              onBack={() => handleTabChange('profile')}
+              onPostClick={(post) => setSelectedDetailPost(post)}
+            />
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Mobile Bottom Navigation */}
@@ -540,7 +559,7 @@ const VibeSocialApp: React.FC = () => {
         <ReportModal
           isOpen={showGlobalReport}
           onClose={() => setShowGlobalReport(false)}
-          targetId={user.id}
+          targetId={user?.id || ''}
           targetType="user"
           targetTitle="General Platform Feedback / Issue"
         />

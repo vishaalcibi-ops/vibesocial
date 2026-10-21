@@ -72,8 +72,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
     setLoading(true)
     try {
       await authService.signIn(cleanEmail, password)
-      if (onAuthSuccess) onAuthSuccess()
-      onNavigate('/')
+      if (onAuthSuccess) {
+        onAuthSuccess()
+      } else {
+        onNavigate('/')
+      }
     } catch (err: any) {
       console.error('Login error:', err)
       setErrorMsg(err.message || 'Failed to sign in. Please verify your credentials.')
@@ -86,10 +89,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess 
     setErrorMsg(null)
     setGoogleLoading(true)
     try {
-      await authService.signInWithGoogle()
-      if (onAuthSuccess) onAuthSuccess()
-      onNavigate('/')
+      const res = await authService.signInWithGoogle()
+      if (res && (res as any).redirected) {
+        return
+      }
+      if (onAuthSuccess) {
+        onAuthSuccess()
+      } else {
+        onNavigate('/')
+      }
     } catch (err: any) {
+      if (
+        err?.message?.includes('cancelled') ||
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request'
+      ) {
+        return
+      }
       console.error('Google Sign-In error:', err)
       setErrorMsg(err.message || 'Failed to sign in with Google.')
     } finally {

@@ -53,4 +53,29 @@ describe('Instagram-Inspired Landing & Real Firebase Authentication', () => {
     expect(pathToTab('/notifications')).toBe('notifications')
     expect(pathToTab('/profile/user_abc123')).toBe('profile')
   })
+
+  it('exposes checkRedirectResult on authService and delegates to firebase', () => {
+    expect(typeof authService.checkRedirectResult).toBe('function')
+    expect(typeof authServiceFirebase.checkRedirectResult).toBe('function')
+  })
+
+  it('validates vercel.json reverse proxy for Firebase storage partitioning prevention', async () => {
+    const fs = await import('fs')
+    const path = await import('path')
+    const vercelConfigPath = path.resolve(__dirname, '../../vercel.json')
+    expect(fs.existsSync(vercelConfigPath)).toBe(true)
+
+    const raw = fs.readFileSync(vercelConfigPath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    expect(parsed.rewrites).toBeDefined()
+
+    const authRewrite = parsed.rewrites.find((r: any) => r.source === '/__/auth/(.*)')
+    expect(authRewrite).toBeDefined()
+    expect(authRewrite.destination).toContain('firebaseapp.com/__/auth/$1')
+
+    const spaRewrite = parsed.rewrites.find((r: any) => r.source === '/(.*)')
+    expect(spaRewrite).toBeDefined()
+    expect(spaRewrite.destination).toBe('/index.html')
+  })
 })
+

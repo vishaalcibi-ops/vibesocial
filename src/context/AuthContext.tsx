@@ -68,16 +68,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let isMounted = true
 
-    // Initial session load
-    authService.getSession().then(async (sess) => {
-      if (!isMounted) return
-      setSession(sess as AuthSession | null)
-      setUser(sess?.user ?? null)
-      if (sess?.user) {
-        await loadUserProfile(sess.user.id)
+    const initAuth = async () => {
+      // 1. Process and resolve any pending redirect sign-in from Google
+      try {
+        const redirectRes = await authService.checkRedirectResult()
+        if (redirectRes?.error) {
+          console.warn('Google redirect sign-in notification:', redirectRes.error.message)
+        }
+      } catch (redirectErr) {
+        console.warn('Redirect result check:', redirectErr)
       }
-      setLoading(false)
-    })
+
+      // 2. Retrieve initial authenticated session
+      try {
+        const sess = await authService.getSession()
+        if (!isMounted) return
+        setSession(sess as AuthSession | null)
+        setUser(sess?.user ?? null)
+        if (sess?.user) {
+          await loadUserProfile(sess.user.id)
+        }
+      } catch (sessErr) {
+        console.error('Session retrieval error:', sessErr)
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    initAuth()
 
     // Listen for auth changes
     const { unsubscribe } = authService.onAuthStateChange(async (sess) => {

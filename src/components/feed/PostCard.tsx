@@ -723,10 +723,19 @@ export const PostCard: React.FC<PostCardProps> = ({
         )}
 
         <span className="post-time">
-          {new Date(post.created_at).toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-          })}
+          {(() => {
+            try {
+              const d = new Date(post.created_at || Date.now())
+              return isNaN(d.getTime())
+                ? 'Recently'
+                : d.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })
+            } catch {
+              return 'Recently'
+            }
+          })()}
         </span>
 
         {actionError && (

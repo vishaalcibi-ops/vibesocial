@@ -69,8 +69,11 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
       await authService.signUp(cleanEmail, password, cleanUsername, cleanFullName)
       setSuccessMsg('Account created successfully! Welcome to VibeSocial.')
       setTimeout(() => {
-        if (onAuthSuccess) onAuthSuccess()
-        onNavigate('/')
+        if (onAuthSuccess) {
+          onAuthSuccess()
+        } else {
+          onNavigate('/')
+        }
       }, 700)
     } catch (err: any) {
       console.error('Signup error:', err)
@@ -84,14 +87,25 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
     setErrorMsg(null)
     setGoogleLoading(true)
     try {
-      await authService.signInWithGoogle()
-      if (onAuthSuccess) onAuthSuccess()
-      onNavigate('/')
-    } catch (err: any) {
-      console.error('Google signup error:', err)
-      if (err.message && !err.message.includes('popup was closed')) {
-        setErrorMsg(err.message || 'Google sign-in was not completed.')
+      const res = await authService.signInWithGoogle()
+      if (res && (res as any).redirected) {
+        return
       }
+      if (onAuthSuccess) {
+        onAuthSuccess()
+      } else {
+        onNavigate('/')
+      }
+    } catch (err: any) {
+      if (
+        err?.message?.includes('cancelled') ||
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request'
+      ) {
+        return
+      }
+      console.error('Google signup error:', err)
+      setErrorMsg(err.message || 'Google sign-in was not completed.')
     } finally {
       setGoogleLoading(false)
     }
