@@ -11,7 +11,6 @@ import {
   Send,
   Film,
   X,
-  ArrowRight,
 } from 'lucide-react'
 import { authService } from '../../services/authService'
 import { usePlatform } from '../../hooks/usePlatform'
@@ -19,10 +18,9 @@ import { usePlatform } from '../../hooks/usePlatform'
 interface LoginPageProps {
   onNavigate: (path: string) => void
   onAuthSuccess?: () => void
-  onExploreGuest?: () => void
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess, onExploreGuest }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -100,15 +98,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess,
       }
       onNavigate('/')
     } catch (err: any) {
-      if (
-        err?.message?.includes('cancelled') ||
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request'
-      ) {
-        return
-      }
       console.error('Google Sign-In error:', err)
-      setErrorMsg(err.message || 'Failed to sign in with Google.')
+      const msg = err?.message || 'Failed to sign in with Google.'
+      setErrorMsg(msg)
+      if (typeof window !== 'undefined' && isAndroid) {
+        alert('Google Sign-In Error:\n' + msg)
+      }
     } finally {
       setGoogleLoading(false)
     }
@@ -782,40 +777,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess,
           >
             Create new account
           </button>
-
-          {/* Explore App as Guest (Directly view stories, reels, posts) */}
-          {onExploreGuest && (
-            <button
-              type="button"
-              onClick={onExploreGuest}
-              style={{
-                width: '100%',
-                height: '44px',
-                marginTop: '12px',
-                background: 'rgba(56, 189, 248, 0.08)',
-                border: '1px dashed rgba(56, 189, 248, 0.35)',
-                borderRadius: '8px',
-                color: '#38BDF8',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(56, 189, 248, 0.08)'
-              }}
-            >
-              <span>Explore App as Guest (Stories, Reels & Feed)</span>
-              <ArrowRight size={16} />
-            </button>
-          )}
 
           {/* Footer Branding */}
           <div

@@ -210,33 +210,25 @@ export const authServiceFirebase = {
       throw new Error('Firebase credentials are not configured yet.')
     }
 
-    // 1. Native Mobile (Android APK) Flow: Native Credential Manager (No external browser, no redirect URI, no malformed URL)
+    // 1. Native Mobile (Android APK) Flow: Native Credential Manager
     if (Capacitor.isNativePlatform()) {
       try {
         await GoogleSignIn.initialize({
           clientId: '147783519509-i5p5bp8l16d1hhgh3p0n28aeqdqk4f7u.apps.googleusercontent.com',
         })
         const res = await GoogleSignIn.signIn()
-        if (!res?.idToken) {
-          throw new Error('Google Sign-In did not return an authentication token.')
+        const idToken = res?.idToken || (res as any)?.authentication?.idToken
+        if (!idToken) {
+          throw new Error('Google did not return an idToken: ' + JSON.stringify(res))
         }
-        const credential = GoogleAuthProvider.credential(res.idToken)
+        const credential = GoogleAuthProvider.credential(idToken)
         const cred = await signInWithCredential(auth, credential)
         ensureUserProfileExists(cred.user).catch((err) => console.warn('Background profile create:', err))
         return { user: cred.user }
       } catch (nativeErr: any) {
-        const msg = (nativeErr?.message || '').toLowerCase()
-        const code = (nativeErr?.code || '').toLowerCase()
-        if (
-          msg.includes('canceled') ||
-          msg.includes('cancelled') ||
-          msg.includes('sign_in_canceled') ||
-          code.includes('canceled')
-        ) {
-          throw new Error('Sign-in cancelled.')
-        }
         console.error('Native Google Sign-In error:', nativeErr)
-        throw formatFirebaseError(nativeErr)
+        const errDetails = nativeErr?.message || nativeErr?.errorMessage || JSON.stringify(nativeErr)
+        throw new Error(errDetails)
       }
     }
 

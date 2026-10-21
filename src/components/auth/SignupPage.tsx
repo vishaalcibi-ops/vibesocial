@@ -8,17 +8,15 @@ import {
   User,
   AlertCircle,
   Check,
-  ArrowRight,
 } from 'lucide-react'
 import { authService } from '../../services/authService'
 
 interface SignupPageProps {
   onNavigate: (path: string) => void
   onAuthSuccess?: () => void
-  onExploreGuest?: () => void
 }
 
-export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSuccess, onExploreGuest }) => {
+export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSuccess }) => {
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -98,15 +96,12 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
       }
       onNavigate('/')
     } catch (err: any) {
-      if (
-        err?.message?.includes('cancelled') ||
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request'
-      ) {
-        return
-      }
       console.error('Google signup error:', err)
-      setErrorMsg(err.message || 'Google sign-in was not completed.')
+      const msg = err?.message || 'Google sign-in was not completed.'
+      setErrorMsg(msg)
+      if (typeof window !== 'undefined') {
+        alert('Google Sign-In Error:\n' + msg)
+      }
     } finally {
       setGoogleLoading(false)
     }
@@ -615,34 +610,6 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onAuthSucces
             Log in
           </button>
         </div>
-
-        {/* Explore App as Guest */}
-        {onExploreGuest && (
-          <button
-            type="button"
-            onClick={onExploreGuest}
-            style={{
-              width: '100%',
-              height: '44px',
-              marginTop: '16px',
-              background: 'rgba(56, 189, 248, 0.08)',
-              border: '1px dashed rgba(56, 189, 248, 0.35)',
-              borderRadius: '8px',
-              color: '#38BDF8',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <span>Explore App as Guest (Stories, Reels & Feed)</span>
-            <ArrowRight size={16} />
-          </button>
-        )}
 
         {/* Footer info */}
         <div style={{ marginTop: 24, textAlign: 'center', fontSize: 11, color: '#666666' }}>
