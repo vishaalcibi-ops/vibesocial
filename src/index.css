@@ -116,6 +116,8 @@ html, body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
 }
 
 button {
@@ -1039,13 +1041,13 @@ a {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--bottom-nav-height);
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
   background: var(--bg-primary);
   border-top: 1px solid var(--border-subtle);
   z-index: 50;
   align-items: center;
   justify-content: space-around;
-  padding: 0 10px;
+  padding: 0 10px env(safe-area-inset-bottom, 0px) 10px;
 }
 
 /* Shimmer Loading Skeleton */
@@ -1105,7 +1107,7 @@ a {
   }
   .main-wrapper {
     margin-left: 0;
-    padding: 12px 10px 70px 10px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(70px + env(safe-area-inset-bottom, 0px)) 10px;
   }
   .post-card {
     border-radius: 0;

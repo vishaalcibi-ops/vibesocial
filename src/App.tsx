@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Sparkles } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
+import { ThemeProvider, useTheme } from './context/ThemeContext'
+import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
+import { StatusBar, Style } from '@capacitor/status-bar'
+import { SplashScreen } from '@capacitor/splash-screen'
 import { Sidebar } from './components/navigation/Sidebar'
 import { MobileNav } from './components/navigation/MobileNav'
 import { FeedView } from './components/feed/FeedView'
@@ -98,6 +102,65 @@ const VibeSocialApp: React.FC = () => {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0)
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
   const [feedRefreshKey, setFeedRefreshKey] = useState(0)
+  const { theme } = useTheme()
+
+  // Native Capacitor lifecycle: hide splash screen and theme status bar
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    SplashScreen.hide().catch(() => {})
+
+    if (theme === 'dark') {
+      StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
+      StatusBar.setBackgroundColor({ color: '#000000' }).catch(() => {})
+    } else {
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {})
+      StatusBar.setBackgroundColor({ color: '#FFFFFF' }).catch(() => {})
+    }
+  }, [theme])
+
+  // Native Android hardware back-button handling
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    const listenerPromise = CapApp.addListener('backButton', () => {
+      if (showAuthModal) {
+        setShowAuthModal(false)
+      } else if (showGlobalReport) {
+        setShowGlobalReport(false)
+      } else if (selectedDetailPost) {
+        setSelectedDetailPost(null)
+      } else if (showCreateStory) {
+        setShowCreateStory(false)
+      } else if (showCreatePost) {
+        setShowCreatePost(false)
+      } else if (showCreateMenu) {
+        setShowCreateMenu(false)
+      } else if (selectedProfileId) {
+        setSelectedProfileId(null)
+      } else if (messageTargetUserId) {
+        setMessageTargetUserId(null)
+      } else if (currentTab !== 'feed') {
+        handleTabChange('feed')
+      } else {
+        CapApp.exitApp()
+      }
+    })
+
+    return () => {
+      listenerPromise.then((handle) => handle.remove()).catch(() => {})
+    }
+  }, [
+    showAuthModal,
+    showGlobalReport,
+    selectedDetailPost,
+    showCreateStory,
+    showCreatePost,
+    showCreateMenu,
+    selectedProfileId,
+    messageTargetUserId,
+    currentTab,
+  ])
 
   // Navigation helper
   const navigate = (path: string) => {
