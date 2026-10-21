@@ -45,7 +45,7 @@ export const resolveAuthDomain = (): string => {
     }
   }
 
-  return 'vibesocial-app-906a8.firebaseapp.com'
+  return 'vibesocial-sigma.vercel.app'
 }
 
 export const firebaseApiKey = clean(envApiKey && envApiKey !== 'your-firebase-api-key' ? envApiKey : localApiKey)
