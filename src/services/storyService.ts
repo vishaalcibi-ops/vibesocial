@@ -1,7 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase'
 import { getBackendProvider } from './backendConfig'
 import { storyServiceFirebase } from './firebase/storyService.firebase'
-import type { Story, StoryView } from '../types/database.types'
+import type { Story, StoryView, AudioTrack } from '../types/database.types'
 
 export interface CreateStoryOptions {
   authorId: string
@@ -10,6 +10,9 @@ export interface CreateStoryOptions {
   mediaType?: 'image' | 'video'
   caption?: string
   isCloseFriends?: boolean
+  audioTrack?: AudioTrack | null
+  filter?: string | null
+  textOverlay?: string | null
 }
 
 export const storyService = {
@@ -82,6 +85,9 @@ export const storyService = {
     mediaType,
     caption,
     isCloseFriends,
+    audioTrack,
+    filter,
+    textOverlay,
   }: CreateStoryOptions): Promise<Story> {
     if (getBackendProvider() === 'firebase') {
       return await storyServiceFirebase.createStory({
@@ -91,6 +97,9 @@ export const storyService = {
         mediaType,
         caption,
         isCloseFriends,
+        audioTrack,
+        filter,
+        textOverlay,
       })
     }
 

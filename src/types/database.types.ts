@@ -127,6 +127,9 @@ export interface Story {
   author?: Profile
   viewed?: boolean
   is_close_friends?: boolean
+  audio_track?: AudioTrack | null
+  filter?: string | null
+  text_overlay?: string | null
 }
 
 export interface StoryView {

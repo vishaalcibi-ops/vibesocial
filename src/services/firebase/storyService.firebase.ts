@@ -10,7 +10,7 @@ import {
   limit as firestoreLimit,
 } from 'firebase/firestore'
 import { db, auth, isFirebaseConfigured } from './firebaseConfig'
-import type { Story, StoryView, Profile } from '../../types/database.types'
+import type { Story, StoryView, Profile, AudioTrack } from '../../types/database.types'
 import { closeFriendsService } from '../closeFriendsService'
 
 export interface CreateStoryParams {
@@ -20,6 +20,9 @@ export interface CreateStoryParams {
   mediaType?: 'image' | 'video'
   caption?: string
   isCloseFriends?: boolean
+  audioTrack?: AudioTrack | null
+  filter?: string | null
+  textOverlay?: string | null
 }
 
 export interface StoryGroup {
@@ -145,6 +148,9 @@ export const storyServiceFirebase = {
           author: authorProfile,
           viewed: isViewed,
           is_close_friends: Boolean(data.isCloseFriends),
+          audio_track: data.audioTrack || null,
+          filter: data.filter || null,
+          text_overlay: data.textOverlay || null,
         }
 
         if (!groupMap.has(data.authorId)) {
@@ -186,6 +192,9 @@ export const storyServiceFirebase = {
     mediaType = 'image',
     caption,
     isCloseFriends,
+    audioTrack,
+    filter,
+    textOverlay,
   }: CreateStoryParams): Promise<Story> {
     if (!isFirebaseConfigured()) throw new Error('Firebase is not configured.')
 
@@ -205,8 +214,15 @@ export const storyServiceFirebase = {
     }
 
     const trimmedUrl = mediaUrl.trim()
-    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-      throw new Error('Media URL must start with http:// or https://')
+    const isValidUrl =
+      trimmedUrl.startsWith('data:image/') ||
+      trimmedUrl.startsWith('data:video/') ||
+      trimmedUrl.startsWith('blob:') ||
+      trimmedUrl.startsWith('http://') ||
+      trimmedUrl.startsWith('https://')
+
+    if (!isValidUrl) {
+      throw new Error('Invalid media format. Please upload a photo or use a valid web link.')
     }
 
     // Lookup author profile to denormalize
@@ -240,7 +256,7 @@ export const storyServiceFirebase = {
       mediaType ||
       (trimmedUrl.match(/\.(mp4|webm|mov)(\?|$)/i) ? 'video' : 'image')
 
-    const storyData = {
+    const storyData: any = {
       id: storyDocRef.id,
       authorId,
       authorUsername: username,
@@ -254,6 +270,16 @@ export const storyServiceFirebase = {
       isCloseFriends: Boolean(isCloseFriends),
       createdAt,
       expiresAt,
+    }
+
+    if (audioTrack) {
+      storyData.audioTrack = audioTrack
+    }
+    if (filter) {
+      storyData.filter = filter
+    }
+    if (textOverlay) {
+      storyData.textOverlay = textOverlay
     }
 
     await setDoc(storyDocRef, storyData)
@@ -281,6 +307,9 @@ export const storyServiceFirebase = {
       author: authorProfile,
       viewed: false,
       is_close_friends: Boolean(isCloseFriends),
+      audio_track: audioTrack || null,
+      filter: filter || null,
+      text_overlay: textOverlay || null,
     }
   },
 

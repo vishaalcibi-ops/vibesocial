@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX } from 'lucide-react'
 import type { Story, StoryView } from '../../types/database.types'
 import { storyService } from '../../services/storyService'
 import { useAuth } from '../../context/AuthContext'
@@ -36,12 +36,59 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   const [viewers, setViewers] = useState<StoryView[]>([])
   const [showViewers, setShowViewers] = useState(false)
   const [mediaError, setMediaError] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
   const timerRef = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const hasStories = Boolean(storyGroup && storyGroup.stories.length > 0)
   const currentStory = hasStories && storyGroup ? storyGroup.stories[currentIndex] : null
   const isOwner = Boolean(user && storyGroup && user.id === storyGroup.authorId)
+
+  // Manage attached music playback
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio()
+      audioRef.current.loop = true
+    }
+
+    const audio = audioRef.current
+    if (currentStory?.audio_track?.audio_url) {
+      audio.src = currentStory.audio_track.audio_url
+      audio.muted = isMuted
+      if (!isPaused && !showViewers) {
+        audio.play().catch(() => {})
+      }
+    } else {
+      audio.pause()
+      audio.src = ''
+    }
+
+    return () => {
+      audio.pause()
+    }
+  }, [currentIndex, currentStory, isMuted])
+
+  // Pause / resume audio when modal state changes
+  useEffect(() => {
+    if (audioRef.current && currentStory?.audio_track?.audio_url) {
+      if (isPaused || showViewers) {
+        audioRef.current.pause()
+      } else {
+        audioRef.current.play().catch(() => {})
+      }
+    }
+  }, [isPaused, showViewers, currentStory])
+
+  // Cleanup audio on modal unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+    }
+  }, [])
 
   const handleNext = useCallback(() => {
     if (!storyGroup) {
@@ -264,6 +311,27 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Pause/Resume indicator */}
+            {currentStory.audio_track && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsMuted(!isMuted)
+                }}
+                aria-label={isMuted ? 'Unmute music' : 'Mute music'}
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  color: 'white',
+                  borderRadius: '50%',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              </button>
+            )}
+
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -322,6 +390,36 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Music Sticker Badge under Header if attached */}
+        {currentStory.audio_track && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '70px',
+              left: '16px',
+              zIndex: 35,
+              background: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(8px)',
+              borderRadius: 'var(--radius-full, 20px)',
+              padding: '5px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              maxWidth: '75%',
+            }}
+          >
+            <Music size={13} color="#ec4899" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentStory.audio_track.title} • {currentStory.audio_track.artist}
+            </span>
+          </div>
+        )}
 
         {/* Story Media */}
         <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
