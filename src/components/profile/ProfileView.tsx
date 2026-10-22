@@ -83,7 +83,29 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const loadProfileData = async () => {
     setLoading(true)
     try {
-      const p = await profileService.getProfileById(userId)
+      let p = await profileService.getProfileById(userId)
+
+      // Fallback: If viewing current user's profile and database returned null, use authProfile or synthesize profile
+      if (!p && isMe) {
+        if (authProfile) {
+          p = authProfile
+        } else if (user) {
+          const rawName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'user'
+          const cleanUsername = rawName.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 25) || `user_${user.id.slice(0, 5)}`
+          p = {
+            id: user.id,
+            username: cleanUsername,
+            full_name: user.user_metadata?.full_name || cleanUsername,
+            bio: '',
+            avatar_url: null,
+            website: '',
+            is_verified: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+        }
+      }
+
       setProfile(p)
 
       const [statsRes, postsRes, reelsRes, followRes, requestRes, blockedRes, restrictedRes] = await Promise.all([
@@ -247,6 +269,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   }
 
   if (!profile) {
+    if (isMe && user) {
+      const rawName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'user'
+      const cleanUsername = rawName.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 25) || `user_${user.id.slice(0, 5)}`
+      const fallback: Profile = authProfile || {
+        id: user.id,
+        username: cleanUsername,
+        full_name: user.user_metadata?.full_name || cleanUsername,
+        bio: '',
+        avatar_url: null,
+        website: '',
+        is_verified: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      setProfile(fallback)
+      return null
+    }
+
     if (!user && !userId) {
       return (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
@@ -269,7 +309,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
         <p style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>User Not Found</p>
-        <p style={{ fontSize: '14px' }}>The user profile you are looking for does not exist or has been removed.</p>
+        <p style={{ fontSize: '14px', marginBottom: '16px' }}>The user profile you are looking for does not exist or has been removed.</p>
+        <button
+          className="btn-secondary"
+          onClick={() => loadProfileData()}
+          style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          Retry
+        </button>
       </div>
     )
   }
@@ -356,21 +403,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {onOpenSettings && (
             <button
-              className="btn-secondary"
+              className="btn-secondary profile-icon-btn"
               onClick={onOpenSettings}
               title="Account Settings"
               aria-label="Account Settings"
             >
-              <Settings size={15} />
+              <Settings size={16} />
             </button>
           )}
           <button
-            className="btn-secondary"
+            className="btn-secondary profile-icon-btn"
             onClick={handleShareProfile}
             title="Share profile"
             aria-label="Share profile"
           >
-            <Share2 size={15} />
+            <Share2 size={16} />
           </button>
         </div>
       )
@@ -394,22 +441,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <span>Message</span>
         </button>
         <button
-          className="btn-secondary"
+          className="btn-secondary profile-icon-btn"
           onClick={handleShareProfile}
           title="Share profile"
           aria-label="Share profile"
         >
-          <Share2 size={15} />
+          <Share2 size={16} />
         </button>
 
         <div style={{ position: 'relative' }}>
           <button
-            className="btn-secondary"
+            className="btn-secondary profile-icon-btn"
             onClick={() => setShowUserMenu(!showUserMenu)}
             title="More profile options"
             aria-label="More profile options"
           >
-            <MoreHorizontal size={15} />
+            <MoreHorizontal size={16} />
           </button>
 
           {showUserMenu && (
@@ -537,7 +584,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="profile-header-top-row">
           <img
             src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'}
-            alt={profile.username}
+            alt={profile.username || profile.full_name || 'User'}
             className="profile-avatar-large"
           />
           {/* Mobile-only Stats: Positioned beside avatar on phone screens */}
@@ -548,7 +595,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="profile-top-bar">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <h1 className="profile-username-heading">{profile.username}</h1>
+                <h1 className="profile-username-heading">{profile.username || profile.full_name || 'user'}</h1>
                 {profile.is_verified && <span className="verified-icon">●</span>}
               </div>
               {profile.last_seen && profile.show_active_status !== false && (

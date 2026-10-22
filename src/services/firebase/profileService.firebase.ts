@@ -15,28 +15,63 @@ import {
 import { db, auth, isFirebaseConfigured } from './firebaseConfig'
 import type { Profile, FollowRequest } from '../../types/database.types'
 import { notificationServiceFirebase } from './notificationService.firebase'
+import { ensureUserProfileExists } from './authService.firebase'
 
 export const profileServiceFirebase = {
   async getProfileById(userId: string): Promise<Profile | null> {
     if (!isFirebaseConfigured() || !userId) return null
 
+    const cacheKey = `vibesocial_profile_${userId}`
+    let cachedProfile: Profile | null = null
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(cacheKey)
+        if (stored) cachedProfile = JSON.parse(stored)
+      } catch {}
+    }
+
     try {
       const userRef = doc(db, 'users', userId)
       const userSnap = await getDoc(userRef)
 
-      if (!userSnap.exists()) {
-        return null
+      if (userSnap.exists()) {
+        const data = userSnap.data()
+        const rawName = data.username || data.full_name || 'user'
+        const cleanUsername = data.username || rawName.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 25) || `user_${userId.slice(0, 5)}`
+        const profile: Profile = {
+          id: userSnap.id,
+          ...data,
+          username: cleanUsername,
+          full_name: data.full_name || cleanUsername,
+          is_private: Boolean(data.is_private || data.settings?.is_private),
+          show_active_status: data.settings?.show_active_status !== false,
+          last_seen: data.last_seen,
+        } as Profile
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(profile))
+          } catch {}
+        }
+        return profile
       }
 
-      const data = userSnap.data()
-      return {
-        ...data,
-        is_private: Boolean(data.is_private || data.settings?.is_private),
-        show_active_status: data.settings?.show_active_status !== false,
-        last_seen: data.last_seen,
-      } as Profile
+      // Check if userId was actually passed as a username (from URL route or deep-link)
+      const byUsername = await this.getProfileByUsername(userId)
+      if (byUsername) return byUsername
+
+      // If viewing self and document not found, auto-heal from Firebase Auth user
+      if (auth.currentUser && auth.currentUser.uid === userId) {
+        return await ensureUserProfileExists(auth.currentUser)
+      }
+
+      return cachedProfile || null
     } catch (error) {
       console.error('Error fetching Firebase profile by ID:', error)
+      if (cachedProfile) return cachedProfile
+      if (auth.currentUser && auth.currentUser.uid === userId) {
+        return await ensureUserProfileExists(auth.currentUser)
+      }
       return null
     }
   },
@@ -54,13 +89,24 @@ export const profileServiceFirebase = {
         return null
       }
 
-      const data = querySnap.docs[0].data()
-      return {
+      const docSnap = querySnap.docs[0]
+      const data = docSnap.data()
+      const profile: Profile = {
+        id: docSnap.id,
         ...data,
+        username: data.username || cleanUsername,
+        full_name: data.full_name || cleanUsername,
         is_private: Boolean(data.is_private || data.settings?.is_private),
         show_active_status: data.settings?.show_active_status !== false,
         last_seen: data.last_seen,
       } as Profile
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`vibesocial_profile_${docSnap.id}`, JSON.stringify(profile))
+        } catch {}
+      }
+      return profile
     } catch (error) {
       console.error('Error fetching Firebase profile by username:', error)
       return null

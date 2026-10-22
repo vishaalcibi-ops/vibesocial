@@ -71,34 +71,66 @@ const formatFirebaseError = (err: any): Error => {
   }
 }
 
-export const ensureUserProfileExists = async (user: User): Promise<void> => {
-  try {
-    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
-    const userDocRef = doc(db, 'users', user.uid)
-    const userDoc = await Promise.race([getDoc(userDocRef), timeoutPromise])
-    if (userDoc && !userDoc.exists()) {
-      const rawName = user.displayName || user.email?.split('@')[0] || 'user'
-      const cleanUsername =
-        rawName
-          .toLowerCase()
-          .replace(/[^a-z0-9_.]/g, '')
-          .slice(0, 25) || `user_${user.uid.slice(0, 5)}`
+export const ensureUserProfileExists = async (user: User): Promise<Profile> => {
+  const rawName = user.displayName || user.email?.split('@')[0] || 'user'
+  const cleanUsername =
+    rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9_.]/g, '')
+      .slice(0, 25) || `user_${user.uid.slice(0, 5)}`
 
-      const profileData: Profile = {
-        id: user.uid,
-        username: cleanUsername,
-        full_name: user.displayName || 'Vibe User',
-        bio: '',
-        avatar_url: user.photoURL || null,
-        website: '',
-        is_verified: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+  const defaultProfile: Profile = {
+    id: user.uid,
+    username: cleanUsername,
+    full_name: user.displayName || cleanUsername,
+    bio: '',
+    avatar_url: user.photoURL || null,
+    website: '',
+    is_verified: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+
+  // Cache immediately in localStorage for instant phone APK access
+  if (typeof window !== 'undefined') {
+    try {
+      const existing = localStorage.getItem(`vibesocial_profile_${user.uid}`)
+      if (!existing) {
+        localStorage.setItem(`vibesocial_profile_${user.uid}`, JSON.stringify(defaultProfile))
       }
-      await setDoc(userDocRef, profileData)
+    } catch {}
+  }
+
+  try {
+    const userDocRef = doc(db, 'users', user.uid)
+    const userDoc = await getDoc(userDocRef)
+
+    if (userDoc.exists()) {
+      const data = userDoc.data()
+      const resolvedProfile: Profile = {
+        id: userDoc.id,
+        ...data,
+        username: data.username || cleanUsername,
+        full_name: data.full_name || user.displayName || cleanUsername,
+        avatar_url: data.avatar_url ?? user.photoURL ?? null,
+        is_private: Boolean(data.is_private || data.settings?.is_private),
+        show_active_status: data.settings?.show_active_status !== false,
+        last_seen: data.last_seen,
+      } as Profile
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`vibesocial_profile_${user.uid}`, JSON.stringify(resolvedProfile))
+        } catch {}
+      }
+      return resolvedProfile
     }
+
+    await setDoc(userDocRef, defaultProfile)
+    return defaultProfile
   } catch (profileErr) {
-    console.warn('Profile self-healing deferred until rules published:', profileErr)
+    console.warn('Profile self-healing or lookup fallback:', profileErr)
+    return defaultProfile
   }
 }
 
@@ -223,7 +255,7 @@ export const authServiceFirebase = {
         }
         const credential = GoogleAuthProvider.credential(idToken)
         const cred = await signInWithCredential(auth, credential)
-        ensureUserProfileExists(cred.user).catch((err) => console.warn('Background profile create:', err))
+        await ensureUserProfileExists(cred.user)
         return { user: cred.user }
       } catch (nativeErr: any) {
         console.error('Native Google Sign-In error:', nativeErr)

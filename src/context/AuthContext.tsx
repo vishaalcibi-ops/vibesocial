@@ -47,10 +47,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = async (userId: string) => {
     try {
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
-      const fetchPromise = profileService.getProfileById(userId)
-      const p = await Promise.race([fetchPromise, timeoutPromise])
-      if (p) setProfile(p)
+      // 1. Check cached profile in localStorage for instant display on phone APK
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem(`vibesocial_profile_${userId}`)
+          if (cached) {
+            const parsed = JSON.parse(cached)
+            if (parsed && parsed.id === userId) {
+              setProfile((prev) => prev || parsed)
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Fetch fresh profile from backend
+      const p = await profileService.getProfileById(userId)
+      if (p) {
+        setProfile(p)
+      }
     } catch (e) {
       console.error('Failed to load profile:', e)
     }
