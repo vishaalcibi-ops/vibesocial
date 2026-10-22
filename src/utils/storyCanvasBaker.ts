@@ -19,6 +19,8 @@ export interface StoryTextOverlay {
   fontSize?: number
   x?: number // percentage 0-100
   y?: number // percentage 0-100
+  scale?: number
+  rotation?: number
   fontStyle?: 'classic' | 'modern' | 'neon' | 'typewriter' | 'strong'
 }
 
@@ -27,6 +29,8 @@ export interface StoryCanvasSticker {
   type: string
   x: number // percentage 0-100
   y: number // percentage 0-100
+  scale?: number
+  rotation?: number
   data: any
 }
 
@@ -250,6 +254,15 @@ function drawTextOverlay(ctx: CanvasRenderingContext2D, txt: StoryTextOverlay, w
   const baseFontSize = txt.fontSize || Math.max(26, Math.round(w * 0.055))
   const fontSize = Math.max(18, Math.round((baseFontSize / 500) * w))
 
+  const centerX = (txt.x !== undefined ? txt.x / 100 : 0.5) * w
+  const centerY = (txt.y !== undefined ? txt.y / 100 : 0.5) * h
+  const scale = txt.scale || 1
+  const rotation = txt.rotation || 0
+
+  ctx.translate(centerX, centerY)
+  if (rotation !== 0) ctx.rotate((rotation * Math.PI) / 180)
+  if (scale !== 1) ctx.scale(scale, scale)
+
   let fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   if (txt.fontStyle === 'typewriter') fontFamily = '"Courier New", Courier, monospace'
   else if (txt.fontStyle === 'neon') fontFamily = '"Brush Script MT", cursive, sans-serif'
@@ -259,16 +272,13 @@ function drawTextOverlay(ctx: CanvasRenderingContext2D, txt: StoryTextOverlay, w
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
-  const centerX = (txt.x !== undefined ? txt.x / 100 : 0.5) * w
-  const centerY = (txt.y !== undefined ? txt.y / 100 : 0.5) * h
-
   const metrics = ctx.measureText(text)
   const textWidth = metrics.width
   const paddingX = fontSize * 0.7
   const boxWidth = textWidth + paddingX * 2
   const boxHeight = fontSize * 1.5
-  const boxX = centerX - boxWidth / 2
-  const boxY = centerY - boxHeight / 2
+  const boxX = -boxWidth / 2
+  const boxY = -boxHeight / 2
   const radius = fontSize * 0.35
 
   // Background pill
@@ -290,7 +300,7 @@ function drawTextOverlay(ctx: CanvasRenderingContext2D, txt: StoryTextOverlay, w
   }
 
   ctx.fillStyle = txt.color || '#ffffff'
-  ctx.fillText(text, centerX, centerY)
+  ctx.fillText(text, 0, 0)
   ctx.restore()
 }
 
@@ -298,6 +308,12 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
   ctx.save()
   const centerX = (st.x / 100) * w
   const centerY = (st.y / 100) * h
+  const scale = st.scale || 1
+  const rotation = st.rotation || 0
+
+  ctx.translate(centerX, centerY)
+  if (rotation !== 0) ctx.rotate((rotation * Math.PI) / 180)
+  if (scale !== 1) ctx.scale(scale, scale)
 
   switch (st.type) {
     case 'location': {
@@ -309,8 +325,8 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       const metrics = ctx.measureText(locationText)
       const pillW = metrics.width + fontSize * 1.8
       const pillH = fontSize * 2.2
-      const x = centerX - pillW / 2
-      const y = centerY - pillH / 2
+      const x = -pillW / 2
+      const y = -pillH / 2
 
       // Gradient background
       const grad = ctx.createLinearGradient(x, y, x + pillW, y)
@@ -322,7 +338,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.fill()
 
       ctx.fillStyle = '#ffffff'
-      ctx.fillText(locationText, centerX, centerY)
+      ctx.fillText(locationText, 0, 0)
       break
     }
 
@@ -335,8 +351,8 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       const metrics = ctx.measureText(mentionText)
       const pillW = metrics.width + fontSize * 1.6
       const pillH = fontSize * 2
-      const x = centerX - pillW / 2
-      const y = centerY - pillH / 2
+      const x = -pillW / 2
+      const y = -pillH / 2
 
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
@@ -344,7 +360,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.fill()
 
       ctx.fillStyle = '#e1306c'
-      ctx.fillText(mentionText, centerX, centerY)
+      ctx.fillText(mentionText, 0, 0)
       break
     }
 
@@ -357,8 +373,8 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       const metrics = ctx.measureText(linkLabel)
       const pillW = metrics.width + fontSize * 2
       const pillH = fontSize * 2.2
-      const x = centerX - pillW / 2
-      const y = centerY - pillH / 2
+      const x = -pillW / 2
+      const y = -pillH / 2
 
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
@@ -366,7 +382,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.fill()
 
       ctx.fillStyle = '#2563eb'
-      ctx.fillText(linkLabel, centerX, centerY)
+      ctx.fillText(linkLabel, 0, 0)
       break
     }
 
@@ -374,10 +390,10 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       const question = st.data?.question || 'Ask a question...'
       const opt1 = st.data?.option1 || 'YES'
       const opt2 = st.data?.option2 || 'NO'
-      const cardW = Math.min(w * 0.75, 360)
-      const cardH = cardW * 0.55
-      const x = centerX - cardW / 2
-      const y = centerY - cardH / 2
+      const cardW = Math.min(w * 0.75, 340)
+      const cardH = cardW * 0.52
+      const x = -cardW / 2
+      const y = -cardH / 2
 
       // Card body
       ctx.fillStyle = '#ffffff'
@@ -391,7 +407,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillStyle = '#111827'
-      ctx.fillText(question, centerX, y + cardH * 0.3)
+      ctx.fillText(question, 0, y + cardH * 0.3)
 
       // Option 1 & 2 buttons
       const btnW = (cardW - 36) / 2
@@ -420,10 +436,10 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
     case 'slider': {
       const prompt = st.data?.question || 'Rate this'
       const emoji = st.data?.emoji || '😍'
-      const cardW = Math.min(w * 0.75, 340)
+      const cardW = Math.min(w * 0.75, 320)
       const cardH = cardW * 0.42
-      const x = centerX - cardW / 2
-      const y = centerY - cardH / 2
+      const x = -cardW / 2
+      const y = -cardH / 2
 
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
@@ -434,7 +450,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillStyle = '#111827'
-      ctx.fillText(prompt, centerX, y + cardH * 0.3)
+      ctx.fillText(prompt, 0, y + cardH * 0.3)
 
       // Slider bar
       const barW = cardW - 40
@@ -448,7 +464,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
 
       // Emoji thumb
       ctx.font = `${Math.round(cardW * 0.12)}px sans-serif`
-      ctx.fillText(emoji, centerX, barY + 5)
+      ctx.fillText(emoji, 0, barY + 5)
       break
     }
 
@@ -461,8 +477,8 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       const metrics = ctx.measureText(tagText)
       const pillW = metrics.width + fontSize * 1.6
       const pillH = fontSize * 2
-      const x = centerX - pillW / 2
-      const y = centerY - pillH / 2
+      const x = -pillW / 2
+      const y = -pillH / 2
 
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
@@ -470,39 +486,51 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.fill()
 
       ctx.fillStyle = '#ec4899'
-      ctx.fillText(tagText, centerX, centerY)
+      ctx.fillText(tagText, 0, 0)
       break
     }
 
     case 'countdown': {
-      const title = st.data?.title || 'Countdown'
-      const cardW = Math.min(w * 0.72, 320)
+      const title = st.data?.title || 'Weekend Celebration 🎉'
+      const cardW = Math.min(w * 0.74, 320)
       const cardH = cardW * 0.48
-      const x = centerX - cardW / 2
-      const y = centerY - cardH / 2
+      const x = -cardW / 2
+      const y = -cardH / 2
 
       ctx.fillStyle = '#1e1e1e'
       ctx.beginPath()
-      ctx.roundRect(x, y, cardW, cardH, 14)
+      ctx.roundRect(x, y, cardW, cardH, 16)
       ctx.fill()
 
-      ctx.font = `bold ${Math.round(cardW * 0.07)}px sans-serif`
+      ctx.font = `bold ${Math.round(cardW * 0.065)}px sans-serif`
       ctx.textAlign = 'center'
       ctx.fillStyle = '#ffffff'
-      ctx.fillText(`⏱️ ${title}`, centerX, y + cardH * 0.32)
+      ctx.fillText(`⏱️ ${title}`, 0, y + cardH * 0.3)
 
-      ctx.font = `bold ${Math.round(cardW * 0.12)}px monospace`
+      // Calculate time string
+      let timeStr = '02 : 14 : 35'
+      const targetDateStr = st.data?.targetDate || st.data?.targetTimestamp
+      if (targetDateStr) {
+        const diff = Math.max(0, new Date(targetDateStr).getTime() - Date.now())
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
+        const mins = Math.floor((diff / (1000 * 60)) % 60)
+        const secs = Math.floor((diff / 1000) % 60)
+        timeStr = days > 0 ? `${days}d ${hours}h ${mins}m` : `${hours.toString().padStart(2, '0')} : ${mins.toString().padStart(2, '0')} : ${secs.toString().padStart(2, '0')}`
+      }
+
+      ctx.font = `bold ${Math.round(cardW * 0.11)}px monospace`
       ctx.fillStyle = '#f43f5e'
-      ctx.fillText('02 : 14 : 35', centerX, y + cardH * 0.72)
+      ctx.fillText(timeStr, 0, y + cardH * 0.7)
       break
     }
 
     case 'add_yours': {
-      const prompt = st.data?.prompt || 'Drop your favorite photo'
-      const cardW = Math.min(w * 0.74, 330)
+      const prompt = st.data?.prompt || 'Drop your favorite photo 📸'
+      const cardW = Math.min(w * 0.74, 320)
       const cardH = cardW * 0.48
-      const x = centerX - cardW / 2
-      const y = centerY - cardH / 2
+      const x = -cardW / 2
+      const y = -cardH / 2
 
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
@@ -512,11 +540,34 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.font = `bold ${Math.round(cardW * 0.058)}px sans-serif`
       ctx.fillStyle = '#ec4899'
       ctx.textAlign = 'center'
-      ctx.fillText('📷 ADD YOURS', centerX, y + cardH * 0.3)
+      ctx.fillText('📷 ADD YOURS', 0, y + cardH * 0.3)
 
       ctx.font = `600 ${Math.round(cardW * 0.055)}px sans-serif`
       ctx.fillStyle = '#1f2937'
-      ctx.fillText(prompt, centerX, y + cardH * 0.65)
+      ctx.fillText(prompt, 0, y + cardH * 0.65)
+      break
+    }
+
+    case 'frames': {
+      const label = st.data?.label || 'VIBE POLAROID'
+      const date = st.data?.date || new Date().toLocaleDateString()
+      const frameW = Math.min(w * 0.7, 300)
+      const frameH = frameW * 1.2
+      const x = -frameW / 2
+      const y = -frameH / 2
+
+      ctx.fillStyle = '#fdfbf7'
+      ctx.beginPath()
+      ctx.roundRect(x, y, frameW, frameH, 12)
+      ctx.fill()
+
+      ctx.fillStyle = '#1c1c1e'
+      ctx.fillRect(x + 16, y + 16, frameW - 32, frameH - 64)
+
+      ctx.font = `bold ${Math.round(frameW * 0.05)}px "Brush Script MT", cursive, sans-serif`
+      ctx.fillStyle = '#4b5563'
+      ctx.textAlign = 'center'
+      ctx.fillText(`${label} • ${date}`, 0, y + frameH - 22)
       break
     }
 
@@ -526,10 +577,10 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.font = `bold ${fontSize}px "Brush Script MT", cursive, sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.shadowColor = '#ec4899'
+      ctx.shadowColor = st.data?.color || '#ec4899'
       ctx.shadowBlur = 20
       ctx.fillStyle = '#fbcfe8'
-      ctx.fillText(neonText, centerX, centerY)
+      ctx.fillText(neonText, 0, 0)
       break
     }
 
@@ -539,7 +590,7 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.font = `${fontSize}px sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(emojiChar, centerX, centerY)
+      ctx.fillText(emojiChar, 0, 0)
       break
     }
 

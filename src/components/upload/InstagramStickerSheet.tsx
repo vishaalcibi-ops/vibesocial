@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Search,
   X,
@@ -15,7 +15,10 @@ import {
   HelpCircle,
   Layers,
   Image as ImageIcon,
+  Compass,
 } from 'lucide-react'
+import { profileService } from '../../services/profileService'
+import type { Profile } from '../../types/database.types'
 
 export interface StickerPayload {
   type: string
@@ -38,6 +41,17 @@ const YOUR_STICKERS = [
 
 const QUICK_EMOJIS = ['😍', '🔥', '😂', '❤️', '👏', '🥳', '💯', '✨']
 
+const POPULAR_LOCATIONS = [
+  'Marina Beach, Chennai',
+  'Besant Nagar Beach',
+  'T. Nagar, Chennai',
+  'ECR, Chennai',
+  'Coimbatore, India',
+  'Bengaluru, India',
+  'Goa, India',
+  'Madurai, India',
+]
+
 const TRENDING_GIFS = [
   { id: 'fire', label: '🔥 Fire', emoji: '🔥' },
   { id: 'heart_sparkle', label: '💖 Love', emoji: '💖' },
@@ -58,7 +72,10 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
 
   // Config Modal States
   const [locationInput, setLocationInput] = useState('')
+  const [detectingGps, setDetectingGps] = useState(false)
   const [mentionInput, setMentionInput] = useState('')
+  const [mentionSuggestions, setMentionSuggestions] = useState<Profile[]>([])
+  const [selectedMentionProfile, setSelectedMentionProfile] = useState<Profile | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [linkTitle, setLinkTitle] = useState('')
   const [pollQuestion, setPollQuestion] = useState('')
@@ -70,6 +87,26 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
   const [addYoursPrompt, setAddYoursPrompt] = useState('Drop your favorite photo 📸')
   const [hashtagInput, setHashtagInput] = useState('')
   const [countdownTitle, setCountdownTitle] = useState('Weekend Celebration 🎉')
+  const [countdownDate, setCountdownDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)) // upcoming Saturday
+    return d.toISOString().split('T')[0]
+  })
+  const [countdownTime, setCountdownTime] = useState('20:00')
+
+  // Real-time mention search
+  useEffect(() => {
+    const clean = mentionInput.trim().replace(/^@/, '')
+    if (clean.length >= 1) {
+      let active = true
+      profileService.searchProfiles(clean, 6).then((res) => {
+        if (active) setMentionSuggestions(res)
+      }).catch(() => {})
+      return () => { active = false }
+    } else {
+      setMentionSuggestions([])
+    }
+  }, [mentionInput])
 
   if (!isOpen) return null
 
@@ -164,13 +201,17 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
       case 'location':
         onSelectSticker({
           type: 'location',
-          data: { name: locationInput.trim() || '📍 Chennai, India' },
+          data: { name: locationInput.trim() || '📍 Marina Beach, Chennai' },
         })
         break
       case 'mention':
         onSelectSticker({
           type: 'mention',
-          data: { username: mentionInput.trim().replace(/^@/, '') || 'friend' },
+          data: {
+            username: (selectedMentionProfile?.username || mentionInput.trim().replace(/^@/, '') || 'friend'),
+            userId: selectedMentionProfile?.id,
+            avatarUrl: selectedMentionProfile?.avatar_url,
+          },
         })
         break
       case 'link':
@@ -228,19 +269,54 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
           },
         })
         break
-      case 'countdown':
+      case 'countdown': {
+        const targetIso = new Date(`${countdownDate}T${countdownTime}:00`).toISOString()
         onSelectSticker({
           type: 'countdown',
           data: {
             title: countdownTitle.trim() || 'Weekend Celebration 🎉',
-            targetDate: new Date(Date.now() + 86400000 * 2).toISOString(),
+            targetDate: targetIso,
+            targetTimestamp: new Date(targetIso).getTime(),
           },
         })
         break
+      }
     }
 
     setActiveConfigType(null)
     onClose()
+  }
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationInput('📍 Marina Beach, Chennai')
+      return
+    }
+    setDetectingGps(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          )
+          const data = await res.json()
+          const city = data.address?.city || data.address?.town || data.address?.county || 'Chennai'
+          const suburb = data.address?.suburb || data.address?.neighbourhood || data.address?.road
+          const locName = suburb ? `${suburb}, ${city}` : city
+          setLocationInput(`📍 ${locName}`)
+        } catch {
+          setLocationInput('📍 Marina Beach, Chennai')
+        } finally {
+          setDetectingGps(false)
+        }
+      },
+      () => {
+        setLocationInput('📍 Marina Beach, Chennai')
+        setDetectingGps(false)
+      },
+      { timeout: 8000 }
+    )
   }
 
   const handlePhotoSticker = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -958,25 +1034,148 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
               </div>
 
               {activeConfigType === 'location' && (
-                <input
-                  type="text"
-                  placeholder="Enter location (e.g. Marina Beach, Chennai)"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="Search or enter location..."
+                    value={locationInput}
+                    onChange={(e) => setLocationInput(e.target.value)}
+                    autoFocus
+                    style={{ width: '100%' }}
+                  />
+
+                  {/* GPS Detection Button */}
+                  <button
+                    type="button"
+                    onClick={handleDetectLocation}
+                    disabled={detectingGps}
+                    style={{
+                      background: 'rgba(59, 130, 246, 0.2)',
+                      border: '1px solid rgba(59, 130, 246, 0.5)',
+                      borderRadius: '12px',
+                      padding: '8px 12px',
+                      color: '#60a5fa',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      cursor: detectingGps ? 'wait' : 'pointer',
+                    }}
+                  >
+                    <Compass size={16} />
+                    <span>{detectingGps ? 'Pinpointing GPS location...' : '📍 Use My Current Location'}</span>
+                  </button>
+
+                  {/* Popular Location Chips */}
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      Popular Locations
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {POPULAR_LOCATIONS.map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setLocationInput(loc)}
+                          style={{
+                            background: locationInput === loc ? '#ec4899' : 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '16px',
+                            padding: '4px 10px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {activeConfigType === 'mention' && (
-                <input
-                  type="text"
-                  placeholder="Username (e.g. @vishaalcibi)"
-                  value={mentionInput}
-                  onChange={(e) => setMentionInput(e.target.value)}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Type starting letters (e.g. vi...)"
+                    value={mentionInput}
+                    onChange={(e) => {
+                      setMentionInput(e.target.value)
+                      setSelectedMentionProfile(null)
+                    }}
+                    autoFocus
+                    style={{ width: '100%' }}
+                  />
+
+                  {/* Mention Autocomplete List */}
+                  {mentionSuggestions.length > 0 && (
+                    <div
+                      style={{
+                        background: '#2c2c2e',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        maxHeight: '180px',
+                        overflowY: 'auto',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                      }}
+                    >
+                      {mentionSuggestions.map((prof) => (
+                        <div
+                          key={prof.id}
+                          onClick={() => {
+                            setSelectedMentionProfile(prof)
+                            setMentionInput(`@${prof.username}`)
+                            onSelectSticker({
+                              type: 'mention',
+                              data: {
+                                username: prof.username,
+                                userId: prof.id,
+                                avatarUrl: prof.avatar_url,
+                              },
+                            })
+                            setActiveConfigType(null)
+                            onClose()
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            background: selectedMentionProfile?.id === prof.id ? 'rgba(236, 72, 153, 0.25)' : 'transparent',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                            transition: 'background 0.15s ease',
+                          }}
+                        >
+                          <img
+                            src={prof.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                            alt={prof.username}
+                            style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                          <div>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: 'white' }}>
+                              @{prof.username}
+                            </p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#8e8e93' }}>
+                              {prof.full_name}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedMentionProfile && (
+                    <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ✓ Selected: @{selectedMentionProfile.username} (DM notification will be sent)
+                    </div>
+                  )}
+                </div>
               )}
 
               {activeConfigType === 'link' && (
@@ -1092,14 +1291,86 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
               )}
 
               {activeConfigType === 'countdown' && (
-                <input
-                  type="text"
-                  placeholder="Countdown Event (e.g. Goa Trip 🌴)"
-                  value={countdownTitle}
-                  onChange={(e) => setCountdownTitle(e.target.value)}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="Event Name (e.g. Weekend Celebration 🎉)"
+                    value={countdownTitle}
+                    onChange={(e) => setCountdownTitle(e.target.value)}
+                    autoFocus
+                    style={{ width: '100%' }}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#8e8e93', display: 'block', marginBottom: '4px' }}>
+                        Target Date
+                      </label>
+                      <input
+                        type="date"
+                        value={countdownDate}
+                        onChange={(e) => setCountdownDate(e.target.value)}
+                        style={{ width: '100%', background: '#2c2c2e', color: 'white', border: 'none', borderRadius: '10px', padding: '8px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#8e8e93', display: 'block', marginBottom: '4px' }}>
+                        Target Time
+                      </label>
+                      <input
+                        type="time"
+                        value={countdownTime}
+                        onChange={(e) => setCountdownTime(e.target.value)}
+                        style={{ width: '100%', background: '#2c2c2e', color: 'white', border: 'none', borderRadius: '10px', padding: '8px' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7))
+                        setCountdownDate(d.toISOString().split('T')[0])
+                        setCountdownTime('20:00')
+                        setCountdownTitle('Weekend Celebration 🎉')
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        padding: '6px 10px',
+                        color: 'white',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Saturday 8 PM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() + 1)
+                        setCountdownDate(d.toISOString().split('T')[0])
+                        setCountdownTime('19:00')
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        padding: '6px 10px',
+                        color: 'white',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Tomorrow 7 PM
+                    </button>
+                  </div>
+                </div>
               )}
 
               {activeConfigType === 'gif' && (

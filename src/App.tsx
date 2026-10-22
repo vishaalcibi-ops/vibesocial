@@ -99,6 +99,16 @@ const VibeSocialApp: React.FC = () => {
   const [showCreatePost, setShowCreatePost] = useState(false)
   const [createPostInitialTab, setCreatePostInitialTab] = useState<'post' | 'reel'>('post')
   const [showCreateStory, setShowCreateStory] = useState(false)
+  const [storyInitialOptions, setStoryInitialOptions] = useState<any>(null)
+
+  useEffect(() => {
+    const handleOpenStory = (e: any) => {
+      setStoryInitialOptions(e.detail || null)
+      setShowCreateStory(true)
+    }
+    window.addEventListener('open-create-story', handleOpenStory)
+    return () => window.removeEventListener('open-create-story', handleOpenStory)
+  }, [])
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showGlobalReport, setShowGlobalReport] = useState(false)
   const [selectedDetailPost, setSelectedDetailPost] = useState<Post | null>(null)
@@ -546,7 +556,11 @@ const VibeSocialApp: React.FC = () => {
       {/* Create Story Modal */}
       <CreateStoryModal
         isOpen={showCreateStory}
-        onClose={() => setShowCreateStory(false)}
+        onClose={() => {
+          setShowCreateStory(false)
+          setStoryInitialOptions(null)
+        }}
+        initialOptions={storyInitialOptions}
         onSuccess={() => {
           setFeedRefreshKey((prev) => prev + 1)
           setCurrentTab('feed')

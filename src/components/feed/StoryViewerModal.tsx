@@ -29,7 +29,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   onClose,
   onStoryDeleted,
 }) => {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [progress, setProgress] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
@@ -498,6 +498,107 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
               <Link2 size={14} />
               <span>{title}</span>
             </a>
+          )
+        })()}
+
+        {/* Interactive "Add Yours" Sticker Collaboration Button */}
+        {(() => {
+          const addYoursStk = currentStory.stickers?.find((s: any) => s.type === 'add_yours')
+          if (!addYoursStk) return null
+          const prompt = addYoursStk.data?.prompt || 'Drop your favorite view'
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                window.dispatchEvent(
+                  new CustomEvent('open-create-story', {
+                    detail: { prompt },
+                  })
+                )
+                onClose()
+              }}
+              style={{
+                position: 'absolute',
+                bottom: '120px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 39,
+                background: '#ffffff',
+                color: '#ec4899',
+                padding: '8px 18px',
+                borderRadius: '24px',
+                fontWeight: 800,
+                fontSize: '12px',
+                border: '2px solid rgba(236, 72, 153, 0.4)',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.6)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>📷</span>
+              <span>Add Yours: {prompt}</span>
+            </button>
+          )
+        })()}
+
+        {/* Mentioned User "Add to story" Repost Button */}
+        {(() => {
+          if (!user || isOwner) return null
+          const myUsername = profile?.username?.toLowerCase()
+          const isMentioned = Boolean(
+            (currentStory as any).mentioned_user_ids?.includes(user.id) ||
+              currentStory.stickers?.some(
+                (s: any) =>
+                  s.type === 'mention' &&
+                  (s.data?.userId === user.id ||
+                    (myUsername && s.data?.username?.toLowerCase() === myUsername))
+              ) ||
+              (currentStory.caption &&
+                myUsername &&
+                currentStory.caption.toLowerCase().includes(`@${myUsername}`))
+          )
+          if (!isMentioned) return null
+
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                window.dispatchEvent(
+                  new CustomEvent('open-create-story', {
+                    detail: { repostMediaUrl: currentStory.media_url },
+                  })
+                )
+                onClose()
+              }}
+              style={{
+                position: 'absolute',
+                bottom: '75px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 40,
+                background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                color: '#ffffff',
+                padding: '9px 20px',
+                borderRadius: '24px',
+                fontWeight: 800,
+                fontSize: '13px',
+                border: 'none',
+                boxShadow: '0 6px 24px rgba(236, 72, 153, 0.5)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>🔁</span>
+              <span>Add this to your story</span>
+            </button>
           )
         })()}
 

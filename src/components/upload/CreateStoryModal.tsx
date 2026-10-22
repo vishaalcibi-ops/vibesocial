@@ -27,7 +27,7 @@ import { useAuth } from '../../context/AuthContext'
 import { SAMPLE_STORY_PRESETS } from '../../constants/presets'
 import { compressImageFile } from '../../utils/imageCompressor'
 import { INSTAGRAM_FILTERS } from '../../constants/storyFilters'
-import { TRENDING_TRACKS } from '../../services/musicService'
+import { TRENDING_TRACKS, musicService } from '../../services/musicService'
 import {
   bakeStoryCanvas,
   type DrawingStroke,
@@ -38,10 +38,15 @@ import { InstagramStickerSheet, type StickerPayload } from './InstagramStickerSh
 import { StoryDrawingCanvas } from './StoryDrawingCanvas'
 import type { AudioTrack } from '../../types/database.types'
 
-interface CreateStoryModalProps {
+export interface CreateStoryModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  initialOptions?: {
+    prompt?: string
+    repostMediaUrl?: string
+    initialSticker?: StickerPayload
+  }
 }
 
 const TEXT_COLORS = [
@@ -64,7 +69,64 @@ const STORY_EFFECTS = [
   { id: 'hearts', label: 'Hearts', icon: '💖' },
 ]
 
-export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onClose, onSuccess }) => {
+const CountdownLiveTimer: React.FC<{ data: any }> = ({ data }) => {
+  const [timeText, setTimeText] = useState('00 : 00 : 00')
+  const [isPassed, setIsPassed] = useState(false)
+
+  useEffect(() => {
+    const target = data?.targetTimestamp || (data?.targetDate ? new Date(data.targetDate).getTime() : 0)
+    if (!target) {
+      setTimeText('02 : 14 : 35')
+      return
+    }
+
+    const calc = () => {
+      const now = Date.now()
+      const diff = target - now
+      if (diff <= 0) {
+        setIsPassed(true)
+        setTimeText("IT'S TIME! 🎉")
+        return
+      }
+      setIsPassed(false)
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
+      const mins = Math.floor((diff / (1000 * 60)) % 60)
+      const secs = Math.floor((diff / 1000) % 60)
+      if (days > 0) {
+        setTimeText(`${days}d ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`)
+      } else {
+        setTimeText(`${String(hours).padStart(2, '0')} : ${String(mins).padStart(2, '0')} : ${String(secs).padStart(2, '0')}`)
+      }
+    }
+
+    calc()
+    const id = setInterval(calc, 1000)
+    return () => clearInterval(id)
+  }, [data?.targetDate, data?.targetTimestamp])
+
+  return (
+    <p
+      style={{
+        margin: 0,
+        fontSize: '17px',
+        fontWeight: 800,
+        color: isPassed ? '#10b981' : '#f43f5e',
+        fontFamily: 'monospace',
+        letterSpacing: '1px',
+      }}
+    >
+      {timeText}
+    </p>
+  )
+}
+
+export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialOptions,
+}) => {
   const { user } = useAuth()
 
   // Layout & Device Detection
@@ -101,17 +163,25 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
   const [showGridGuides, setShowGridGuides] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
 
-  // Music State
+  // Music State & Real-time Live Search
   const [showMusicPicker, setShowMusicPicker] = useState(false)
   const [selectedMusic, setSelectedMusic] = useState<AudioTrack | null>(null)
   const [musicSearch, setMusicSearch] = useState('')
+  const [musicTracks, setMusicTracks] = useState<AudioTrack[]>(TRENDING_TRACKS)
+  const [searchingMusic, setSearchingMusic] = useState(false)
   const [previewPlayingId, setPreviewPlayingId] = useState<string | null>(null)
   const musicAudioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Sticker Tray State (Screenshot 1)
+  // Sticker Tray State
   const [showStickerSheet, setShowStickerSheet] = useState(false)
   const [stickers, setStickers] = useState<StoryCanvasSticker[]>([])
-  const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null)
+
+  // Active Item Selection for Dragging, Scaling, and Rotation
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [selectedItemType, setSelectedItemType] = useState<'sticker' | 'text' | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null)
+  const pinchStartRef = useRef<{ initialDist: number; initialScale: number } | null>(null)
 
   // Draw Mode State
   const [isDrawMode, setIsDrawMode] = useState(false)
@@ -126,6 +196,64 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
   const [textFontStyle, setTextFontStyle] = useState<'classic' | 'modern' | 'neon' | 'typewriter' | 'strong'>('modern')
 
   const canvasContainerRef = useRef<HTMLDivElement | null>(null)
+
+  // Handle Initial Options (Repost or Add Yours collaboration)
+  useEffect(() => {
+    if (isOpen && initialOptions) {
+      if (initialOptions.repostMediaUrl) {
+        setUploadedDataUrl(initialOptions.repostMediaUrl)
+        setActiveTab('upload')
+      }
+      if (initialOptions.prompt) {
+        const collabSticker: StoryCanvasSticker = {
+          id: `sticker_addyours_${Date.now()}`,
+          type: 'add_yours',
+          x: 50,
+          y: 35,
+          scale: 1,
+          rotation: 0,
+          data: { prompt: initialOptions.prompt },
+        }
+        setStickers((prev) => [...prev, collabSticker])
+        setSelectedItemId(collabSticker.id)
+        setSelectedItemType('sticker')
+      }
+      if (initialOptions.initialSticker) {
+        const initStk: StoryCanvasSticker = {
+          id: `sticker_${Date.now()}`,
+          type: initialOptions.initialSticker.type,
+          x: 50,
+          y: 50,
+          scale: 1,
+          rotation: 0,
+          data: initialOptions.initialSticker.data,
+        }
+        setStickers((prev) => [...prev, initStk])
+        setSelectedItemId(initStk.id)
+        setSelectedItemType('sticker')
+      }
+    }
+  }, [isOpen, initialOptions])
+
+  // Debounced Music Search (iTunes / Global / Tamil Music)
+  useEffect(() => {
+    if (!musicSearch.trim()) {
+      setMusicTracks(TRENDING_TRACKS)
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingMusic(true)
+      try {
+        const results = await musicService.searchTracks(musicSearch, 30)
+        setMusicTracks(results)
+      } catch {
+        setMusicTracks(TRENDING_TRACKS)
+      } finally {
+        setSearchingMusic(false)
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [musicSearch])
 
   // Show auto-dismissing toast
   const showToast = (msg: string) => {
@@ -245,17 +373,26 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
       fontSize: 32,
       x: 50,
       y: 50,
+      scale: 1,
+      rotation: 0,
       fontStyle: textFontStyle,
     }
 
     setTextOverlays((prev) => [...prev, newOverlay])
+    setSelectedItemId(newOverlay.id || null)
+    setSelectedItemType('text')
     setCurrentEditingText('')
     setShowTextEditor(false)
+    showToast('Text added! Drag or tap +/- to adjust.')
   }
 
   const removeTextOverlay = (id?: string) => {
     if (!id) return
     setTextOverlays((prev) => prev.filter((t) => t.id !== id))
+    if (selectedItemId === id) {
+      setSelectedItemId(null)
+      setSelectedItemType(null)
+    }
   }
 
   // Sticker Handlers
@@ -265,34 +402,131 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
       type: payload.type,
       x: 50,
       y: 45 + (stickers.length % 4) * 8,
+      scale: 1,
+      rotation: 0,
       data: payload.data,
     }
     setStickers((prev) => [...prev, newSticker])
+    setSelectedItemId(newSticker.id)
+    setSelectedItemType('sticker')
     showToast(`Added ${payload.type.toUpperCase()} sticker!`)
   }
 
   const removeSticker = (id: string) => {
     setStickers((prev) => prev.filter((s) => s.id !== id))
+    if (selectedItemId === id) {
+      setSelectedItemId(null)
+      setSelectedItemType(null)
+    }
   }
 
-  // Dragging Stickers on Canvas
-  const handleStickerTouchOrMouseDown = (id: string) => {
-    setDraggingStickerId(id)
+  // Dragging, Pinching & Scaling Handlers for both Stickers & Text
+  const handleItemPointerDown = (
+    e: React.PointerEvent,
+    id: string,
+    type: 'sticker' | 'text',
+    currX: number,
+    currY: number
+  ) => {
+    e.stopPropagation()
+    setSelectedItemId(id)
+    setSelectedItemType(type)
+    setIsDragging(true)
+    dragStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startX: currX,
+      startY: currY,
+    }
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {}
   }
 
-  const handleCanvasPointerMove = (e: React.PointerEvent) => {
-    if (!draggingStickerId || !canvasContainerRef.current) return
+  const handleItemPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging || !dragStartRef.current || !canvasContainerRef.current) return
     const rect = canvasContainerRef.current.getBoundingClientRect()
-    const x = Math.max(8, Math.min(92, ((e.clientX - rect.left) / rect.width) * 100))
-    const y = Math.max(10, Math.min(90, ((e.clientY - rect.top) / rect.height) * 100))
+    const dxPercent = ((e.clientX - dragStartRef.current.clientX) / rect.width) * 100
+    const dyPercent = ((e.clientY - dragStartRef.current.clientY) / rect.height) * 100
 
-    setStickers((prev) =>
-      prev.map((s) => (s.id === draggingStickerId ? { ...s, x, y } : s))
-    )
+    const newX = Math.max(8, Math.min(92, Number((dragStartRef.current.startX + dxPercent).toFixed(1))))
+    const newY = Math.max(8, Math.min(92, Number((dragStartRef.current.startY + dyPercent).toFixed(1))))
+
+    if (selectedItemType === 'sticker') {
+      setStickers((prev) => prev.map((s) => (s.id === selectedItemId ? { ...s, x: newX, y: newY } : s)))
+    } else if (selectedItemType === 'text') {
+      setTextOverlays((prev) => prev.map((t) => (t.id === selectedItemId ? { ...t, x: newX, y: newY } : t)))
+    }
   }
 
-  const handleCanvasPointerUp = () => {
-    setDraggingStickerId(null)
+  const handleItemPointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false)
+    dragStartRef.current = null
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {}
+  }
+
+  const handleTouchStart = (e: React.TouchEvent, currentScale: number = 1) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      pinchStartRef.current = { initialDist: dist, initialScale: currentScale || 1 }
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent, id: string, type: 'sticker' | 'text') => {
+    if (e.touches.length === 2 && pinchStartRef.current) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      const ratio = dist / pinchStartRef.current.initialDist
+      const nextScale = Math.min(3.0, Math.max(0.4, Number((pinchStartRef.current.initialScale * ratio).toFixed(2))))
+      if (type === 'sticker') {
+        setStickers((prev) => prev.map((s) => (s.id === id ? { ...s, scale: nextScale } : s)))
+      } else {
+        setTextOverlays((prev) => prev.map((t) => (t.id === id ? { ...t, scale: nextScale } : t)))
+      }
+    }
+  }
+
+  const handleZoomIn = (id: string, type: 'sticker' | 'text') => {
+    if (type === 'sticker') {
+      setStickers((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, scale: Math.min(3.0, Number(((s.scale || 1) + 0.15).toFixed(2))) } : s))
+      )
+    } else {
+      setTextOverlays((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, scale: Math.min(3.0, Number(((t.scale || 1) + 0.15).toFixed(2))) } : t))
+      )
+    }
+  }
+
+  const handleZoomOut = (id: string, type: 'sticker' | 'text') => {
+    if (type === 'sticker') {
+      setStickers((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, scale: Math.max(0.4, Number(((s.scale || 1) - 0.15).toFixed(2))) } : s))
+      )
+    } else {
+      setTextOverlays((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, scale: Math.max(0.4, Number(((t.scale || 1) - 0.15).toFixed(2))) } : t))
+      )
+    }
+  }
+
+  const handleRotate = (id: string, type: 'sticker' | 'text') => {
+    if (type === 'sticker') {
+      setStickers((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, rotation: (((s.rotation || 0) + 15) % 360) } : s))
+      )
+    } else {
+      setTextOverlays((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, rotation: (((t.rotation || 0) + 15) % 360) } : t))
+      )
+    }
   }
 
   // Feature 8: SAVE TO DEVICE (High-Res Bake & Download)
@@ -389,12 +623,6 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
       setLoading(false)
     }
   }
-
-  const filteredTracks = TRENDING_TRACKS.filter(
-    (t) =>
-      t.title.toLowerCase().includes(musicSearch.toLowerCase()) ||
-      t.artist.toLowerCase().includes(musicSearch.toLowerCase())
-  )
 
   return (
     <div
@@ -555,8 +783,12 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
         {/* 9:16 Canvas Area */}
         <div
           ref={canvasContainerRef}
-          onPointerMove={handleCanvasPointerMove}
-          onPointerUp={handleCanvasPointerUp}
+          onPointerMove={handleItemPointerMove}
+          onPointerUp={handleItemPointerUp}
+          onClick={() => {
+            setSelectedItemId(null)
+            setSelectedItemType(null)
+          }}
           style={{
             flex: 1,
             position: 'relative',
@@ -654,355 +886,669 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
             onDone={() => setIsDrawMode(false)}
           />
 
-          {/* Placed Stickers Layer (Interactive & Draggable) */}
-          {stickers.map((st) => (
-            <div
-              key={st.id}
-              onPointerDown={() => handleStickerTouchOrMouseDown(st.id)}
-              style={{
-                position: 'absolute',
-                left: `${st.x}%`,
-                top: `${st.y}%`,
-                transform: 'translate(-50%, -50%)',
-                zIndex: 35,
-                cursor: 'grab',
-                userSelect: 'none',
-                touchAction: 'none',
-              }}
-            >
-              {/* Location Sticker */}
-              {st.type === 'location' && (
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, #f97316, #ec4899)',
-                    color: 'white',
-                    padding: '8px 16px',
-                    borderRadius: '24px',
-                    fontWeight: 800,
-                    fontSize: '13px',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span>{st.data?.name || '📍 Current Location'}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeSticker(st.id)
-                    }}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: 0 }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              )}
+          {/* Placed Stickers Layer (Interactive, Draggable, Pinchable & Scalable) */}
+          {stickers.map((st) => {
+            const isSelected = selectedItemId === st.id
+            const scale = st.scale || 1
+            const rotation = st.rotation || 0
 
-              {/* Mention Sticker */}
-              {st.type === 'mention' && (
-                <div
-                  style={{
-                    background: '#ffffff',
-                    color: '#e1306c',
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    fontWeight: 800,
-                    fontSize: '14px',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span>@{st.data?.username || 'mention'}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeSticker(st.id)
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: 0 }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              )}
-
-              {/* Link Sticker */}
-              {st.type === 'link' && (
-                <div
-                  style={{
-                    background: '#ffffff',
-                    color: '#2563eb',
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    fontWeight: 700,
-                    fontSize: '13px',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <LinkIcon size={14} />
-                  <span>{st.data?.title || '🔗 LINK'}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeSticker(st.id)
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: 0 }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              )}
-
-              {/* Poll Sticker */}
-              {st.type === 'poll' && (
-                <div
-                  style={{
-                    width: '240px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '16px',
-                    padding: '12px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                    color: '#111827',
-                    textAlign: 'center',
-                    position: 'relative',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeSticker(st.id)
-                    }}
+            return (
+              <div
+                key={st.id}
+                onPointerDown={(e) => handleItemPointerDown(e, st.id, 'sticker', st.x, st.y)}
+                onTouchStart={(e) => handleTouchStart(e, scale)}
+                onTouchMove={(e) => handleTouchMove(e, st.id, 'sticker')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedItemId(st.id)
+                  setSelectedItemType('sticker')
+                }}
+                style={{
+                  position: 'absolute',
+                  left: `${st.x}%`,
+                  top: `${st.y}%`,
+                  transform: `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`,
+                  transformOrigin: 'center center',
+                  zIndex: isSelected ? 45 : 35,
+                  cursor: isDragging && isSelected ? 'grabbing' : 'grab',
+                  userSelect: 'none',
+                  touchAction: 'none',
+                  outline: isSelected ? '2px dashed #ec4899' : 'none',
+                  outlineOffset: '4px',
+                  borderRadius: '16px',
+                  transition: isDragging ? 'none' : 'transform 0.1s ease',
+                }}
+              >
+                {/* Floating Quick Action Handles (Zoom, Rotate, Delete) */}
+                {isSelected && (
+                  <div
                     style={{
                       position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      background: 'none',
-                      border: 'none',
-                      color: '#999',
-                      cursor: 'pointer',
+                      top: '-46px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(28, 28, 30, 0.95)',
+                      backdropFilter: 'blur(10px)',
+                      padding: '4px 8px',
+                      borderRadius: '20px',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.7)',
+                      zIndex: 60,
+                      pointerEvents: 'auto',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleZoomIn(st.id, 'sticker')
+                      }}
+                      title="Zoom In"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '15px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleZoomOut(st.id, 'sticker')
+                      }}
+                      title="Zoom Out"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '15px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRotate(st.id, 'sticker')
+                      }}
+                      title="Rotate 15°"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '13px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ↻
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeSticker(st.id)
+                      }}
+                      title="Delete Sticker"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.35)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: '#f87171',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Location Sticker */}
+                {st.type === 'location' && (
+                  <div
+                    style={{
+                      background: 'linear-gradient(135deg, #f97316, #ec4899)',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '24px',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <X size={14} />
-                  </button>
-                  <p style={{ margin: '0 0 10px', fontWeight: 800, fontSize: '14px' }}>
-                    {st.data?.question || 'Ask a question...'}
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <div style={{ background: '#f3f4f6', padding: '8px', borderRadius: '8px', fontWeight: 700, fontSize: '13px' }}>
-                      {st.data?.option1 || 'YES'}
-                    </div>
-                    <div style={{ background: '#f3f4f6', padding: '8px', borderRadius: '8px', fontWeight: 700, fontSize: '13px' }}>
-                      {st.data?.option2 || 'NO'}
+                    <span>{st.data?.name || '📍 Current Location'}</span>
+                  </div>
+                )}
+
+                {/* Mention Sticker */}
+                {st.type === 'mention' && (
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      color: '#e1306c',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      fontSize: '14px',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <span>@{st.data?.username || 'mention'}</span>
+                  </div>
+                )}
+
+                {/* Link Sticker */}
+                {st.type === 'link' && (
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      color: '#2563eb',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <LinkIcon size={14} />
+                    <span>{st.data?.title || '🔗 LINK'}</span>
+                  </div>
+                )}
+
+                {/* Poll Sticker */}
+                {st.type === 'poll' && (
+                  <div
+                    style={{
+                      width: '240px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '12px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      color: '#111827',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 10px', fontWeight: 800, fontSize: '14px' }}>
+                      {st.data?.question || 'Ask a question...'}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div style={{ background: '#f3f4f6', padding: '8px', borderRadius: '8px', fontWeight: 700, fontSize: '13px' }}>
+                        {st.data?.option1 || 'YES'}
+                      </div>
+                      <div style={{ background: '#f3f4f6', padding: '8px', borderRadius: '8px', fontWeight: 700, fontSize: '13px' }}>
+                        {st.data?.option2 || 'NO'}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Emoji Slider Sticker */}
-              {st.type === 'slider' && (
-                <div
-                  style={{
-                    width: '230px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '16px',
-                    padding: '12px 14px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                    color: '#111827',
-                    textAlign: 'center',
-                    position: 'relative',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeSticker(st.id)
+                {/* Emoji Slider Sticker */}
+                {st.type === 'slider' && (
+                  <div
+                    style={{
+                      width: '230px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '12px 14px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      color: '#111827',
+                      textAlign: 'center',
                     }}
+                  >
+                    <p style={{ margin: '0 0 8px', fontWeight: 800, fontSize: '13px' }}>
+                      {st.data?.question || 'Rate this'}
+                    </p>
+                    <div style={{ position: 'relative', height: '18px', display: 'flex', alignItems: 'center' }}>
+                      <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px' }} />
+                      <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '24px' }}>
+                        {st.data?.emoji || '😍'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Questions Sticker */}
+                {st.type === 'questions' && (
+                  <div
+                    style={{
+                      width: '220px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                    }}
+                  >
+                    <div style={{ background: '#f43f5e', color: 'white', padding: '8px', textAlign: 'center', fontWeight: 700, fontSize: '12px' }}>
+                      {st.data?.prompt || 'Ask me a question...'}
+                    </div>
+                    <div style={{ padding: '14px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
+                      Type something...
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Yours Collaborative Sticker */}
+                {st.type === 'add_yours' && (
+                  <div
+                    style={{
+                      width: '230px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '18px',
+                      padding: '10px 14px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      textAlign: 'center',
+                      border: '2px solid rgba(236, 72, 153, 0.4)',
+                    }}
+                  >
+                    <div style={{ color: '#ec4899', fontWeight: 800, fontSize: '12px', marginBottom: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                      <span>📷</span>
+                      <span>ADD YOURS</span>
+                    </div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#1f2937' }}>
+                      {st.data?.prompt || 'Drop your favorite view'}
+                    </p>
+                    <div
+                      style={{
+                        marginTop: '6px',
+                        background: '#f3f4f6',
+                        borderRadius: '10px',
+                        padding: '3px 8px',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        color: '#6b7280',
+                        display: 'inline-block',
+                      }}
+                    >
+                      Tap to collaborate
+                    </div>
+                  </div>
+                )}
+
+                {/* Hashtag Sticker */}
+                {st.type === 'hashtag' && (
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      color: '#ec4899',
+                      padding: '6px 14px',
+                      borderRadius: '16px',
+                      fontWeight: 800,
+                      fontSize: '14px',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    #{st.data?.tag || 'hashtag'}
+                  </div>
+                )}
+
+                {/* Real Live Countdown Sticker */}
+                {st.type === 'countdown' && (
+                  <div
+                    style={{
+                      background: '#1c1c1e',
+                      color: 'white',
+                      padding: '12px 18px',
+                      borderRadius: '16px',
+                      boxShadow: '0 8px 25px rgba(0,0,0,0.7)',
+                      textAlign: 'center',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: 700, color: '#e5e7eb' }}>
+                      ⏱️ {st.data?.title || 'Weekend Celebration 🎉'}
+                    </p>
+                    <CountdownLiveTimer data={st.data} />
+                  </div>
+                )}
+
+                {/* Vintage Polaroid Frames Sticker */}
+                {st.type === 'frames' && (
+                  <div
+                    style={{
+                      width: '180px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '6px',
+                      padding: '12px 12px 24px 12px',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        aspectRatio: '1/1',
+                        backgroundColor: '#1a1a1a',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {activeMediaUrl ? (
+                        <img
+                          src={activeMediaUrl}
+                          alt="Polaroid frame"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '32px' }}>📷</span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: '#1f2937',
+                        fontFamily: '"Courier New", Courier, monospace',
+                        letterSpacing: '1px',
+                      }}
+                    >
+                      {st.data?.label || 'VIBE POLAROID'}
+                    </div>
+                    <div style={{ fontSize: '9px', color: '#9ca3af', marginTop: '2px' }}>
+                      {st.data?.date || new Date().toLocaleDateString()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Photo Picture-in-Picture Sticker */}
+                {st.type === 'photo' && (
+                  <div
+                    style={{
+                      width: '120px',
+                      height: '120px',
+                      borderRadius: '18px',
+                      overflow: 'hidden',
+                      border: '3px solid #ffffff',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                      backgroundColor: '#000000',
+                    }}
+                  >
+                    <img
+                      src={st.data?.url}
+                      alt="PIP sticker"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                )}
+
+                {/* Custom Neon Sticker */}
+                {st.type === 'custom' && (
+                  <div
+                    style={{
+                      color: st.data?.color || '#fbcfe8',
+                      textShadow: `0 0 16px ${st.data?.color || '#ec4899'}`,
+                      fontSize: '28px',
+                      fontWeight: 700,
+                      fontFamily: '"Brush Script MT", cursive, sans-serif',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {st.data?.text || 'Love you'}
+                  </div>
+                )}
+
+                {/* Quick Emoji Reaction Sticker */}
+                {st.type === 'emoji' && (
+                  <span style={{ fontSize: '48px', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))' }}>
+                    {st.data?.emoji || '😍'}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Placed Text Overlays Layer (Draggable, Scalable, Rotatable) */}
+          {textOverlays.map((txt, idx) => {
+            const txtId = txt.id || `text_${idx}`
+            const isSelected = selectedItemId === txtId
+            const scale = txt.scale || 1
+            const rotation = txt.rotation || 0
+
+            return (
+              <div
+                key={txtId}
+                onPointerDown={(e) => handleItemPointerDown(e, txtId, 'text', txt.x || 50, txt.y || 50)}
+                onTouchStart={(e) => handleTouchStart(e, scale)}
+                onTouchMove={(e) => handleTouchMove(e, txtId, 'text')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedItemId(txtId)
+                  setSelectedItemType('text')
+                }}
+                style={{
+                  position: 'absolute',
+                  left: `${txt.x || 50}%`,
+                  top: `${txt.y || 50}%`,
+                  transform: `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`,
+                  transformOrigin: 'center center',
+                  zIndex: isSelected ? 46 : 36,
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: txt.bgColor,
+                  color: txt.color,
+                  fontWeight: 800,
+                  fontSize: '18px',
+                  fontFamily:
+                    txt.fontStyle === 'typewriter'
+                      ? '"Courier New", Courier, monospace'
+                      : txt.fontStyle === 'neon'
+                      ? '"Brush Script MT", cursive, sans-serif'
+                      : txt.fontStyle === 'strong'
+                      ? 'Impact, sans-serif'
+                      : '-apple-system, BlinkMacSystemFont, Roboto, sans-serif',
+                  textAlign: 'center',
+                  boxShadow: txt.bgColor === 'transparent' ? '0 2px 6px rgba(0,0,0,0.8)' : '0 4px 12px rgba(0,0,0,0.4)',
+                  cursor: isDragging && isSelected ? 'grabbing' : 'grab',
+                  userSelect: 'none',
+                  touchAction: 'none',
+                  outline: isSelected ? '2px dashed #ec4899' : 'none',
+                  outlineOffset: '4px',
+                  transition: isDragging ? 'none' : 'transform 0.1s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {/* Floating Quick Action Handles for Text Overlay */}
+                {isSelected && (
+                  <div
                     style={{
                       position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      background: 'none',
-                      border: 'none',
-                      color: '#999',
-                      cursor: 'pointer',
+                      top: '-46px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(28, 28, 30, 0.95)',
+                      backdropFilter: 'blur(10px)',
+                      padding: '4px 8px',
+                      borderRadius: '20px',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.7)',
+                      zIndex: 60,
+                      pointerEvents: 'auto',
+                      whiteSpace: 'nowrap',
                     }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <X size={14} />
-                  </button>
-                  <p style={{ margin: '0 0 8px', fontWeight: 800, fontSize: '13px' }}>
-                    {st.data?.question || 'Rate this'}
-                  </p>
-                  <div style={{ position: 'relative', height: '18px', display: 'flex', alignItems: 'center' }}>
-                    <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px' }} />
-                    <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '24px' }}>
-                      {st.data?.emoji || '😍'}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleZoomIn(txtId, 'text')
+                      }}
+                      title="Zoom In"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '15px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleZoomOut(txtId, 'text')
+                      }}
+                      title="Zoom Out"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '15px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRotate(txtId, 'text')
+                      }}
+                      title="Rotate 15°"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '13px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ↻
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setCurrentEditingText(txt.text)
+                        setShowTextEditor(true)
+                        removeTextOverlay(txtId)
+                      }}
+                      title="Edit Text"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeTextOverlay(txtId)
+                      }}
+                      title="Delete Text"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.35)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: '#f87171',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✕
+                    </button>
                   </div>
-                </div>
-              )}
-
-              {/* Questions Sticker */}
-              {st.type === 'questions' && (
-                <div
-                  style={{
-                    width: '220px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                  }}
-                >
-                  <div style={{ background: '#f43f5e', color: 'white', padding: '8px', textAlign: 'center', fontWeight: 700, fontSize: '12px' }}>
-                    {st.data?.prompt || 'Ask me a question...'}
-                  </div>
-                  <div style={{ padding: '14px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
-                    Type something...
-                  </div>
-                </div>
-              )}
-
-              {/* Add Yours Sticker */}
-              {st.type === 'add_yours' && (
-                <div
-                  style={{
-                    width: '220px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '16px',
-                    padding: '10px 12px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ color: '#ec4899', fontWeight: 800, fontSize: '12px', marginBottom: '4px' }}>
-                    📷 ADD YOURS
-                  </div>
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: '12px', color: '#1f2937' }}>
-                    {st.data?.prompt || 'Drop your favorite view'}
-                  </p>
-                </div>
-              )}
-
-              {/* Hashtag Sticker */}
-              {st.type === 'hashtag' && (
-                <div
-                  style={{
-                    background: '#ffffff',
-                    color: '#ec4899',
-                    padding: '6px 14px',
-                    borderRadius: '16px',
-                    fontWeight: 800,
-                    fontSize: '14px',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  #{st.data?.tag || 'hashtag'}
-                </div>
-              )}
-
-              {/* Countdown Sticker */}
-              {st.type === 'countdown' && (
-                <div
-                  style={{
-                    background: '#1e1e1e',
-                    color: 'white',
-                    padding: '10px 16px',
-                    borderRadius: '14px',
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.6)',
-                    textAlign: 'center',
-                  }}
-                >
-                  <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 700 }}>
-                    ⏱️ {st.data?.title || 'Countdown'}
-                  </p>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f43f5e', fontFamily: 'monospace' }}>
-                    02 : 14 : 35
-                  </p>
-                </div>
-              )}
-
-              {/* Custom Neon Sticker */}
-              {st.type === 'custom' && (
-                <div
-                  style={{
-                    color: '#fbcfe8',
-                    textShadow: '0 0 16px #ec4899',
-                    fontSize: '28px',
-                    fontWeight: 700,
-                    fontFamily: '"Brush Script MT", cursive, sans-serif',
-                  }}
-                >
-                  {st.data?.text || 'Love you'}
-                </div>
-              )}
-
-              {/* Quick Emoji Reaction Sticker */}
-              {st.type === 'emoji' && (
-                <span style={{ fontSize: '48px', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))' }}>
-                  {st.data?.emoji || '😍'}
-                </span>
-              )}
-
-              {/* Photo Picture-in-Picture Sticker */}
-              {st.type === 'photo' && (
-                <img
-                  src={st.data?.url}
-                  alt="Sticker"
-                  style={{
-                    width: '100px',
-                    height: '100px',
-                    borderRadius: '16px',
-                    objectFit: 'cover',
-                    border: '3px solid white',
-                    boxShadow: '0 6px 20px rgba(0,0,0,0.6)',
-                  }}
-                />
-              )}
-            </div>
-          ))}
-
-          {/* Placed Text Overlays Layer */}
-          {textOverlays.map((txt) => (
-            <div
-              key={txt.id}
-              style={{
-                position: 'absolute',
-                left: `${txt.x || 50}%`,
-                top: `${txt.y || 50}%`,
-                transform: 'translate(-50%, -50%)',
-                zIndex: 36,
-                padding: '6px 14px',
-                borderRadius: '8px',
-                background: txt.bgColor,
-                color: txt.color,
-                fontWeight: 800,
-                fontSize: '16px',
-                fontFamily:
-                  txt.fontStyle === 'typewriter'
-                    ? '"Courier New", Courier, monospace'
-                    : txt.fontStyle === 'neon'
-                    ? '"Brush Script MT", cursive, sans-serif'
-                    : txt.fontStyle === 'strong'
-                    ? 'Impact, sans-serif'
-                    : '-apple-system, BlinkMacSystemFont, Roboto, sans-serif',
-                textAlign: 'center',
-                boxShadow: txt.bgColor === 'transparent' ? '0 2px 6px rgba(0,0,0,0.8)' : '0 4px 12px rgba(0,0,0,0.4)',
-                cursor: 'pointer',
-              }}
-              onClick={() => removeTextOverlay(txt.id)}
-            >
-              {txt.text}
-            </div>
-          ))}
+                )}
+                {txt.text}
+              </div>
+            )
+          })}
 
           {/* Attached Music Badge in Canvas */}
           {selectedMusic && (
@@ -1902,63 +2448,75 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
               />
             </div>
 
+            {searchingMusic && (
+              <div style={{ textAlign: 'center', padding: '12px', color: '#ec4899', fontSize: '13px', fontWeight: 600 }}>
+                🎵 Searching Tamil & global tracks...
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {filteredTracks.map((track) => {
-                const isSelected = selectedMusic?.id === track.id
-                const isPlaying = previewPlayingId === track.id
-                return (
-                  <div
-                    key={track.id}
-                    onClick={() => selectTrack(track)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 10px',
-                      borderRadius: '12px',
-                      backgroundColor: isSelected ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255,255,255,0.06)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img
-                        src={track.artwork_url}
-                        alt={track.title}
-                        style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
-                      />
-                      <div>
-                        <p style={{ margin: 0, color: 'white', fontWeight: 700, fontSize: '13px' }}>{track.title}</p>
-                        <p style={{ margin: 0, color: '#8e8e93', fontSize: '11px' }}>{track.artist}</p>
+              {musicTracks.length === 0 && !searchingMusic ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#8e8e93', fontSize: '13px' }}>
+                  No tracks found. Try searching for &quot;Leo&quot;, &quot;Anirudh&quot;, or &quot;Aasa Kooda&quot;.
+                </div>
+              ) : (
+                musicTracks.map((track) => {
+                  const isSelected = selectedMusic?.id === track.id
+                  const isPlaying = previewPlayingId === (track.id || track.title)
+                  return (
+                    <div
+                      key={track.id || track.title}
+                      onClick={() => selectTrack(track)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        borderRadius: '12px',
+                        backgroundColor: isSelected ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255,255,255,0.06)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img
+                          src={track.artwork_url}
+                          alt={track.title}
+                          style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
+                        />
+                        <div>
+                          <p style={{ margin: 0, color: 'white', fontWeight: 700, fontSize: '13px' }}>{track.title}</p>
+                          <p style={{ margin: 0, color: '#8e8e93', fontSize: '11px' }}>{track.artist}</p>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleMusicPreview(track)
+                          }}
+                          style={{
+                            background: 'rgba(255,255,255,0.15)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                        </button>
+                        {isSelected && <Check size={18} color="#ec4899" />}
                       </div>
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleMusicPreview(track)
-                        }}
-                        style={{
-                          background: 'rgba(255,255,255,0.15)',
-                          border: 'none',
-                          borderRadius: '50%',
-                          width: '32px',
-                          height: '32px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-                      </button>
-                      {isSelected && <Check size={18} color="#ec4899" />}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
