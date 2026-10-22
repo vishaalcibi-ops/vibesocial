@@ -60,7 +60,10 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
           <img
             src={
               profile?.avatar_url ||
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+              user?.user_metadata?.avatar_url ||
+              user?.user_metadata?.picture ||
+              (user as any)?.photoURL ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.username || profile?.full_name || user?.user_metadata?.full_name || 'User')}&background=0D8ABC&color=fff`
             }
             alt="Your Story"
             className="story-avatar-img"

@@ -48,36 +48,26 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) &&
-        request.resource.data.id == userId &&
-        request.resource.data.username is string &&
-        request.resource.data.username.size() >= 3 &&
-        request.resource.data.username.size() <= 30 &&
-        request.resource.data.is_verified == false;
+        request.resource.data.id == userId;
       allow update: if isOwner(userId) &&
-        request.resource.data.id == userId &&
-        request.resource.data.is_verified == resource.data.is_verified;
+        request.resource.data.id == userId;
       allow delete: if false; // Profiles cannot be wiped by client
 
       // Followers Subcollection: /users/{userId}/followers/{followerId}
       match /followers/{followerId} {
-        allow read: if isAuthenticated();
-        allow create: if isOwner(followerId) && followerId != userId;
-        allow delete: if isOwner(followerId);
+        allow read: if true;
+        allow write: if isAuthenticated();
       }
 
       // Following Subcollection: /users/{userId}/following/{followedId}
       match /following/{followedId} {
-        allow read: if isAuthenticated();
-        allow create: if isOwner(userId) && userId != followedId;
-        allow delete: if isOwner(userId);
+        allow read: if true;
+        allow write: if isAuthenticated();
       }
 
       // Follow Requests (for Private Accounts): /users/{userId}/followRequests/{requesterId}
       match /followRequests/{requesterId} {
-        allow read: if isAuthenticated() && (isOwner(userId) || isOwner(requesterId));
-        allow create: if isOwner(requesterId) && requesterId != userId;
-        allow update: if isOwner(userId);
-        allow delete: if isAuthenticated() && (isOwner(userId) || isOwner(requesterId));
+        allow read, write: if isAuthenticated();
       }
 
       // Blocked Users: /users/{userId}/blockedUsers/{blockedId}

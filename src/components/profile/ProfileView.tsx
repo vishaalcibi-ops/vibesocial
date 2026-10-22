@@ -583,7 +583,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       <div className="profile-header">
         <div className="profile-header-top-row">
           <img
-            src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'}
+            src={
+              profile.avatar_url ||
+              (isMe ? (user?.user_metadata?.avatar_url || (user as any)?.photoURL) : null) ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username || profile.full_name || 'User')}&background=0D8ABC&color=fff`
+            }
             alt={profile.username || profile.full_name || 'User'}
             className="profile-avatar-large"
           />

@@ -1,5 +1,5 @@
-import React from 'react'
-import { Sparkles, Heart, Send, ArrowLeft, Settings as SettingsIcon } from 'lucide-react'
+import React, { useState } from 'react'
+import { Sparkles, Heart, Send, ArrowLeft, Settings as SettingsIcon, RotateCw } from 'lucide-react'
 
 interface AndroidHeaderProps {
   currentTab: string
@@ -9,6 +9,7 @@ interface AndroidHeaderProps {
   unreadNotificationsCount?: number
   unreadMessagesCount?: number
   onOpenSettings?: () => void
+  onRefresh?: () => void | Promise<void>
 }
 
 const TAB_TITLES: Record<string, string> = {
@@ -33,10 +34,22 @@ export const AndroidHeader: React.FC<AndroidHeaderProps> = ({
   unreadNotificationsCount = 0,
   unreadMessagesCount = 0,
   onOpenSettings,
+  onRefresh,
 }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const isFeed = currentTab === 'feed'
   const isProfile = currentTab === 'profile'
   const title = TAB_TITLES[currentTab] || 'VibeSocial'
+
+  const handleRefreshClick = async () => {
+    if (isRefreshing || !onRefresh) return
+    setIsRefreshing(true)
+    try {
+      await onRefresh()
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 700)
+    }
+  }
 
   return (
     <header className="android-top-bar" role="banner">
@@ -58,6 +71,25 @@ export const AndroidHeader: React.FC<AndroidHeaderProps> = ({
           </div>
 
           <div className="android-actions">
+            {/* In-app Refresh Button */}
+            {onRefresh && (
+              <button
+                className="android-icon-btn"
+                onClick={handleRefreshClick}
+                aria-label="Refresh"
+                title="Refresh"
+              >
+                <RotateCw
+                  size={20}
+                  strokeWidth={2.2}
+                  style={{
+                    transition: 'transform 0.4s ease',
+                    animation: isRefreshing ? 'spin 0.7s linear infinite' : 'none',
+                  }}
+                />
+              </button>
+            )}
+
             {/* Notifications Heart */}
             <button
               className="android-icon-btn"
@@ -105,6 +137,25 @@ export const AndroidHeader: React.FC<AndroidHeaderProps> = ({
           </div>
 
           <div className="android-actions">
+            {/* In-app Refresh Button */}
+            {onRefresh && (
+              <button
+                className="android-icon-btn"
+                onClick={handleRefreshClick}
+                aria-label="Refresh"
+                title="Refresh"
+              >
+                <RotateCw
+                  size={20}
+                  strokeWidth={2.2}
+                  style={{
+                    transition: 'transform 0.4s ease',
+                    animation: isRefreshing ? 'spin 0.7s linear infinite' : 'none',
+                  }}
+                />
+              </button>
+            )}
+
             {isProfile && onOpenSettings && !selectedProfileId && (
               <button
                 className="android-icon-btn"

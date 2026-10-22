@@ -87,7 +87,7 @@ const tabToPath = (tab: TabType, profileId?: string | null): string => {
 }
 
 const VibeSocialApp: React.FC = () => {
-  const { user, loading } = useAuth()
+  const { user, loading, refreshProfile } = useAuth()
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
 
   // Initialize active tab and profile from URL
@@ -107,6 +107,11 @@ const VibeSocialApp: React.FC = () => {
   const [feedRefreshKey, setFeedRefreshKey] = useState(0)
   const { theme } = useTheme()
   const { isAndroid } = usePlatform()
+
+  const handleAppRefresh = async () => {
+    setFeedRefreshKey((prev) => prev + 1)
+    await refreshProfile().catch(() => {})
+  }
 
   // Native Capacitor lifecycle: hide splash screen and theme status bar
   useEffect(() => {
@@ -386,6 +391,7 @@ const VibeSocialApp: React.FC = () => {
           unreadNotificationsCount={unreadNotificationsCount}
           unreadMessagesCount={unreadMessagesCount}
           onOpenSettings={() => handleTabChange('settings')}
+          onRefresh={handleAppRefresh}
         />
       )}
 

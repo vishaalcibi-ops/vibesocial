@@ -107,16 +107,21 @@ export const ensureUserProfileExists = async (user: User): Promise<Profile> => {
 
     if (userDoc.exists()) {
       const data = userDoc.data()
+      const effectiveAvatar = data.avatar_url || user.photoURL || null
       const resolvedProfile: Profile = {
         id: userDoc.id,
         ...data,
         username: data.username || cleanUsername,
         full_name: data.full_name || user.displayName || cleanUsername,
-        avatar_url: data.avatar_url ?? user.photoURL ?? null,
+        avatar_url: effectiveAvatar,
         is_private: Boolean(data.is_private || data.settings?.is_private),
         show_active_status: data.settings?.show_active_status !== false,
         last_seen: data.last_seen,
       } as Profile
+
+      if (!data.avatar_url && user.photoURL) {
+        setDoc(userDocRef, { avatar_url: user.photoURL }, { merge: true }).catch(() => {})
+      }
 
       if (typeof window !== 'undefined') {
         try {

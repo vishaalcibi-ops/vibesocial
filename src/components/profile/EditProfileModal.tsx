@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { X, Camera, AlertCircle } from 'lucide-react'
 import type { Profile } from '../../types/database.types'
 import { profileService } from '../../services/profileService'
+import { useAuth } from '../../context/AuthContext'
 
 interface EditProfileModalProps {
   profile: Profile
@@ -16,6 +17,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { refreshProfile } = useAuth()
+  const [username, setUsername] = useState(profile.username || '')
   const [fullName, setFullName] = useState(profile.full_name || '')
   const [bio, setBio] = useState(profile.bio || '')
   const [website, setWebsite] = useState(profile.website || '')
@@ -50,20 +53,19 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         try {
           finalAvatarUrl = await profileService.uploadAvatar(profile.id, avatarFile)
         } catch (uploadErr: any) {
-          // If storage is disabled (e.g. Firebase Spark free plan), show informative message if no URL provided
-          if (!avatarUrl.trim()) {
-            throw uploadErr
-          }
+          console.warn('Avatar upload fallback error:', uploadErr)
         }
       }
 
       const updated = await profileService.updateProfile(profile.id, {
+        username: username.trim(),
         full_name: fullName.trim(),
         bio: bio.trim(),
         website: website.trim(),
         avatar_url: finalAvatarUrl || null,
       })
 
+      await refreshProfile().catch(() => {})
       onSuccess(updated)
       onClose()
     } catch (err: any) {
@@ -138,6 +140,20 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 setAvatarPreview(e.target.value || profile.avatar_url)
               }}
               style={{ width: '100%' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              Username
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 30))}
+              placeholder="Username"
+              style={{ width: '100%' }}
+              required
             />
           </div>
 

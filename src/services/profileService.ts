@@ -44,7 +44,7 @@ export const profileService = {
     return data
   },
 
-  async updateProfile(userId: string, updates: Partial<Pick<Profile, 'full_name' | 'bio' | 'website' | 'avatar_url'>>) {
+  async updateProfile(userId: string, updates: Partial<Pick<Profile, 'username' | 'full_name' | 'bio' | 'website' | 'avatar_url'>>) {
     if (getBackendProvider() === 'firebase') {
       return profileServiceFirebase.updateProfile(userId, updates)
     }
