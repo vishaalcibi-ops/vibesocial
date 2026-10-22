@@ -6,6 +6,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
+    "site": "vibesocial-app-906a8",
     "public": "dist",
     "ignore": [
       "firebase.json",
