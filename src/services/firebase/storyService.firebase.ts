@@ -23,6 +23,9 @@ export interface CreateStoryParams {
   audioTrack?: AudioTrack | null
   filter?: string | null
   textOverlay?: string | null
+  stickers?: any[] | null
+  isAiLabeled?: boolean
+  isPaidPartnership?: boolean
 }
 
 export interface StoryGroup {
@@ -151,6 +154,9 @@ export const storyServiceFirebase = {
           audio_track: data.audioTrack || null,
           filter: data.filter || null,
           text_overlay: data.textOverlay || null,
+          stickers: data.stickers || null,
+          is_ai_labeled: Boolean(data.isAiLabeled),
+          is_paid_partnership: Boolean(data.isPaidPartnership),
         }
 
         if (!groupMap.has(data.authorId)) {
@@ -195,6 +201,9 @@ export const storyServiceFirebase = {
     audioTrack,
     filter,
     textOverlay,
+    stickers,
+    isAiLabeled,
+    isPaidPartnership,
   }: CreateStoryParams): Promise<Story> {
     if (!isFirebaseConfigured()) throw new Error('Firebase is not configured.')
 
@@ -281,6 +290,15 @@ export const storyServiceFirebase = {
     if (textOverlay) {
       storyData.textOverlay = textOverlay
     }
+    if (stickers && stickers.length > 0) {
+      storyData.stickers = stickers
+    }
+    if (isAiLabeled) {
+      storyData.isAiLabeled = true
+    }
+    if (isPaidPartnership) {
+      storyData.isPaidPartnership = true
+    }
 
     await setDoc(storyDocRef, storyData)
 
@@ -310,6 +328,9 @@ export const storyServiceFirebase = {
       audio_track: audioTrack || null,
       filter: filter || null,
       text_overlay: textOverlay || null,
+      stickers: stickers || null,
+      is_ai_labeled: Boolean(isAiLabeled),
+      is_paid_partnership: Boolean(isPaidPartnership),
     }
   },
 

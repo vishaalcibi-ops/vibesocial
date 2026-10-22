@@ -130,6 +130,9 @@ export interface Story {
   audio_track?: AudioTrack | null
   filter?: string | null
   text_overlay?: string | null
+  stickers?: any[] | null
+  is_ai_labeled?: boolean
+  is_paid_partnership?: boolean
 }
 
 export interface StoryView {

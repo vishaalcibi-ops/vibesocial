@@ -13,6 +13,9 @@ export interface CreateStoryOptions {
   audioTrack?: AudioTrack | null
   filter?: string | null
   textOverlay?: string | null
+  stickers?: any[] | null
+  isAiLabeled?: boolean
+  isPaidPartnership?: boolean
 }
 
 export const storyService = {
@@ -88,6 +91,9 @@ export const storyService = {
     audioTrack,
     filter,
     textOverlay,
+    stickers,
+    isAiLabeled,
+    isPaidPartnership,
   }: CreateStoryOptions): Promise<Story> {
     if (getBackendProvider() === 'firebase') {
       return await storyServiceFirebase.createStory({
@@ -100,6 +106,9 @@ export const storyService = {
         audioTrack,
         filter,
         textOverlay,
+        stickers,
+        isAiLabeled,
+        isPaidPartnership,
       })
     }
 

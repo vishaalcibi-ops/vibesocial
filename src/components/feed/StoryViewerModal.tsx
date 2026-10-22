@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX, Link2 } from 'lucide-react'
 import type { Story, StoryView } from '../../types/database.types'
 import { storyService } from '../../services/storyService'
 import { useAuth } from '../../context/AuthContext'
@@ -420,6 +420,86 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             </span>
           </div>
         )}
+
+        {/* Paid Partnership Banner */}
+        {currentStory.is_paid_partnership && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '70px',
+              right: '16px',
+              zIndex: 35,
+              background: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(8px)',
+              borderRadius: 'var(--radius-full, 20px)',
+              padding: '4px 10px',
+              color: '#ffffff',
+              fontSize: '11px',
+              fontWeight: 700,
+              border: '1px solid rgba(255,255,255,0.2)',
+            }}
+          >
+            Paid partnership
+          </div>
+        )}
+
+        {/* Made with AI Label */}
+        {currentStory.is_ai_labeled && (
+          <div
+            style={{
+              position: 'absolute',
+              top: currentStory.is_paid_partnership ? '100px' : '70px',
+              right: '16px',
+              zIndex: 35,
+              background: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(8px)',
+              borderRadius: 'var(--radius-full, 20px)',
+              padding: '4px 10px',
+              color: '#60a5fa',
+              fontSize: '11px',
+              fontWeight: 700,
+              border: '1px solid rgba(96,165,250,0.3)',
+            }}
+          >
+            ✨ Made with AI
+          </div>
+        )}
+
+        {/* Interactive Link Sticker Overlay if present */}
+        {currentStory.stickers?.find((s: any) => s.type === 'link') && (() => {
+          const linkStk = currentStory.stickers?.find((s: any) => s.type === 'link')
+          const url = linkStk?.data?.url || '#'
+          const title = linkStk?.data?.title || '🔗 Visit Link'
+          return (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                bottom: '80px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 38,
+                background: '#ffffff',
+                color: '#2563eb',
+                padding: '8px 16px',
+                borderRadius: '24px',
+                fontWeight: 700,
+                fontSize: '13px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              <Link2 size={14} />
+              <span>{title}</span>
+            </a>
+          )
+        })()}
 
         {/* Story Media */}
         <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
