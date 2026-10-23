@@ -283,6 +283,13 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
     }
   }, [])
 
+  // Synchronize audio mute state
+  useEffect(() => {
+    if (musicAudioRef.current) {
+      musicAudioRef.current.muted = isStoryAudioMuted
+    }
+  }, [isStoryAudioMuted])
+
   if (!isOpen) return null
 
   const activeMediaUrl =
@@ -323,13 +330,6 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
       setCompressing(false)
     }
   }
-
-  // Synchronize audio mute state
-  useEffect(() => {
-    if (musicAudioRef.current) {
-      musicAudioRef.current.muted = isStoryAudioMuted
-    }
-  }, [isStoryAudioMuted])
 
   // Music handlers with live in-studio playback and lyrics selection
   const toggleMusicPreview = (track: AudioTrack) => {
