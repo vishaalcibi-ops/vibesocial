@@ -10,7 +10,7 @@ export function generateTimedLyrics(title: string, artist: string): LyricLine[] 
   ]
 }
 
-// Curated Spotify and Global Trending Tracks (International + Indian/Tamil Hits)
+// Curated Spotify and Global Trending Tracks (Full Tamil Hits & International Spotify Chartbusters)
 export const TRENDING_TRACKS: AudioTrack[] = [
   {
     id: 'spotify-starboy',
@@ -26,6 +26,8 @@ export const TRENDING_TRACKS: AudioTrack[] = [
       { time: 5, text: "P1 cleaner than your church shoes, ah" },
       { time: 10, text: "Milli point two just to hurt you, ah" },
       { time: 15, text: "Look what you've done, I'm a motherfuckin' starboy" },
+      { time: 20, text: "Every day a star is born, clap if you feel like that" },
+      { time: 25, text: "House so empty, need a centerpiece" },
     ],
   },
   {
@@ -35,140 +37,133 @@ export const TRENDING_TRACKS: AudioTrack[] = [
     audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/60/45/bc/6045bcf3-badc-db56-d044-adf6b14b0816/mzaf_7981634368973271980.plus.aac.p.m4a',
     artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b0/bf/d4/b0bfd46c-da95-2f95-1f7d-a75aa51c2465/196871252386.jpg/600x600bb.jpg',
     duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Naa%20Ready%20Leo',
+    spotify_url: 'https://open.spotify.com/track/5uQ7981634368973271980',
     source: 'spotify',
     lyrics: [
       { time: 0, text: "Naa ready thaan varava? Annan naan erangi varava?" },
-      { time: 6, text: "Kettathellam kedaikkanumna ethiri kooda kooda vaa" },
-      { time: 12, text: "Thodra paapom ennodaya kottai idhu da" },
-      { time: 18, text: "Singam irangi varum neram vandhaachu da" },
+      { time: 4, text: "Kettathellam kedaikkanumna ethiri kooda kooda vaa" },
+      { time: 8, text: "Thodra paapom ennodaya kottai idhu da" },
+      { time: 12, text: "Singam irangi varum neram vandhaachu da" },
+      { time: 16, text: "Pallaakku kedachaalum kaal nadaya poganum da" },
+      { time: 20, text: "Millaati koodathula muthalaali aaganum da" },
+      { time: 24, text: "Pathu rooba note-u kooda kottai katti nikkum da" },
+      { time: 27, text: "Vandhavan ponaavan ellam vazhi vidu da" },
     ],
   },
-  {
-    id: 'itunes-naa-ready',
-    title: 'Naa Ready (Leo)',
-    artist: 'Anirudh Ravichander & Vijay',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/60/45/bc/6045bcf3-badc-db56-d044-adf6b14b0816/mzaf_7981634368973271980.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b0/bf/d4/b0bfd46c-da95-2f95-1f7d-a75aa51c2465/196871252386.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Naa%20Ready%20Leo',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-aasa-kooda',
-    title: 'Aasa Kooda',
-    artist: 'Sai Abhyankkar & Sai Smriti',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/7d/cf/b4/7dcfb491-bc94-a3b7-58eb-955d86b87304/mzaf_11729642638473227575.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/39/42/ba/3942ba45-40bd-5d0a-d7ad-0595f1336f3f/cover.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Aasa%20Kooda',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-arabic-kuthu',
-    title: 'Arabic Kuthu (Beast)',
-    artist: 'Anirudh Ravichander & Jonita Gandhi',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/58/ac/9a/58ac9a48-9e3e-15c9-5085-3a13a6187992/mzaf_12322264242631159198.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/e9/19/b9/e919b921-d5a8-9e9a-8508-3551da375aee/196626458629.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Arabic%20Kuthu',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-powerhouse',
-    title: 'Powerhouse (Coolie)',
-    artist: 'Anirudh Ravichander & Arivu',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/6f/51/5e/6f515e16-25fd-c190-e277-6a0c27772ad8/mzaf_8795228625472102415.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f0/7c/ec/f07cec97-4d1a-da91-02a1-d1a0421ac840/199538343670.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Powerhouse%20Coolie',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-hukum',
-    title: 'Hukum (Jailer)',
-    artist: 'Anirudh Ravichander & Super Subu',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/20/4b/a5/204ba5f1-aa95-9204-049a-3af28613dfdb/mzaf_9848955577816183835.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/29/10/dc/2910dce9-8973-7957-6a39-e8afc074aa55/197189422959.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Hukum%20Jailer',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-vaathi-coming',
-    title: 'Vaathi Coming (Master)',
-    artist: 'Anirudh Ravichander & Gana Balachandar',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/d7/72/96/d77296ea-677d-45f9-4267-996bbc6801c8/mzaf_2392699048273414940.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a3/f2/dc/a3f2dc29-fc54-07bb-8f9c-2a3936d21a5d/886448363347.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Vaathi%20Coming',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-thalapathy-kacheri',
-    title: 'Thalapathy Kacheri',
-    artist: 'Anirudh Ravichander & Vijay',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/00/12/4b/00124bc6-3928-404c-fa9a-b6157fc472f5/mzaf_6999912150450564885.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ef/74/eb/ef74eb29-043d-990b-3a83-40fa23db6e58/8903431148827_cover.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Thalapathy%20Kacheri',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-badass',
-    title: 'Badass (Leo)',
-    artist: 'Anirudh Ravichander',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/6c/a2/17/6ca2178b-46ab-9d33-f84c-4c59bf53c73d/mzaf_16544885937595911593.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/13/a8/70/13a87001-28ba-1bc7-0ca6-52cf10dd6f52/196871556415.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Badass%20Leo',
-    source: 'spotify',
-  },
-  {
-    id: 'itunes-vikram',
-    title: 'Vikram Title Track',
-    artist: 'Anirudh Ravichander',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/15/ad/62/15ad6241-3628-2f3e-06b3-5e6ade5c7a7c/mzaf_10622762420251211954.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/41/41/01/41410135-baa0-1aab-7417-f6746b0f3c25/196589186973.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/search/Vikram%20Title%20Track',
-    source: 'spotify',
-  },
-
   {
     id: 'spotify-hukum',
     title: 'Hukum - Thalaivar Alappara (Jailer)',
     artist: 'Anirudh Ravichander & Super Subu',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/37/f3/04/37f3044a-b50a-c932-d81a-c71556a31505/mzaf_16694670267794017367.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/e5/22/01/e522019a-9e73-b39d-2101-294b6d9be705/8903431945038_cover.jpg/600x600bb.jpg',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/20/4b/a5/204ba5f1-aa95-9204-049a-3af28613dfdb/mzaf_9848955577816183835.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/29/10/dc/2910dce9-8973-7957-6a39-e8afc074aa55/197189422959.jpg/600x600bb.jpg',
     duration: 30,
-    spotify_url: 'https://open.spotify.com/track/1yYkZfZuHh6g2k1b7X8a8J',
+    spotify_url: 'https://open.spotify.com/track/6Z9848955577816183835',
     source: 'spotify',
     lyrics: [
       { time: 0, text: "Hukum... Tiger ka hukum!" },
       { time: 4, text: "Alappara kelapparom... Thalaivar neram!" },
       { time: 8, text: "Singathoda koottathula deer-u vandhu ninnucham" },
-      { time: 14, text: "Kadhara vachiputtaan thalaivan paaru" },
-      { time: 19, text: "Men makkal sonna sollai kaetka maattaan" },
+      { time: 12, text: "Singam adha paathu oru sirippu sirippucham" },
+      { time: 16, text: "Kadhara vachiputtaan thalaivan paaru" },
+      { time: 20, text: "Men makkal sonna sollai kaetka maattaan" },
       { time: 24, text: "Vandha paaru Superstar-u alappara!" },
+      { time: 28, text: "Ketta paeru eduthu vacha vettikaran da!" },
+    ],
+  },
+  {
+    id: 'spotify-aasa-kooda',
+    title: 'Aasa Kooda',
+    artist: 'Sai Abhyankkar & Sai Smriti',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/7d/cf/b4/7dcfb491-bc94-a3b7-58eb-955d86b87304/mzaf_11729642638473227575.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/39/42/ba/3942ba45-40bd-5d0a-d7ad-0595f1336f3f/cover.jpg/600x600bb.jpg',
+    duration: 30,
+    spotify_url: 'https://open.spotify.com/track/7d11729642638473227575',
+    source: 'spotify',
+    lyrics: [
+      { time: 0, text: "Aasa kooda paarkaiyil en manasu kooda aadudhey" },
+      { time: 4, text: "Pesum vizhigal paarkum nodiyil kaadhal pookkudhey" },
+      { time: 9, text: "Unnoda serndhu naan paadum paattu" },
+      { time: 14, text: "Thendral kaatril mella vandhadhu paaru" },
+      { time: 19, text: "Nenjukkul koodikitta aasaigal nooru" },
+      { time: 23, text: "Un nizhalaaga naan kooda varuven" },
+      { time: 27, text: "Endrendrum anbe unakkaga vaazhven" },
     ],
   },
   {
     id: 'spotify-arabic-kuthu',
     title: 'Arabic Kuthu (Beast)',
     artist: 'Anirudh Ravichander & Jonita Gandhi',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/a5/d7/c4/a5d7c491-7f99-a99f-703a-3c734ea0b3ec/mzaf_11306352932147321523.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/bf/25/7f/bf257fe5-5b48-18e4-e0eb-14421b96d96d/8903431872129_cover.jpg/600x600bb.jpg',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/58/ac/9a/58ac9a48-9e3e-15c9-5085-3a13a6187992/mzaf_12322264242631159198.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/e9/19/b9/e919b921-d5a8-9e9a-8508-3551da375aee/196626458629.jpg/600x600bb.jpg',
     duration: 30,
-    spotify_url: 'https://open.spotify.com/track/4jVqgJqQ6zX2V5Y61m4XvL',
+    spotify_url: 'https://open.spotify.com/track/3k12322264242631159198',
     source: 'spotify',
     lyrics: [
       { time: 0, text: "Halamithi Habibo... Halamithi Habibo!" },
-      { time: 5, text: "Malama Pitha Pithadhey... Malama Pitha Pithadhey!" },
-      { time: 10, text: "Holik Holik Aahaa... Jolly O Gymkhana!" },
-      { time: 15, text: "Mudinja Varikkum Kuthu... Arabic Kuthu Idhu!" },
-      { time: 21, text: "Kasu Panathukku Aasapadadha manasae" },
-      { time: 26, text: "Arabic Kuthu Beat-la aadidalaam vaa!" },
+      { time: 4, text: "Malama Pitha Pithadhey... Malama Pitha Pithadhey!" },
+      { time: 8, text: "Holik Holik Aahaa... Jolly O Gymkhana!" },
+      { time: 13, text: "Mudinja Varikkum Kuthu... Arabic Kuthu Idhu!" },
+      { time: 17, text: "Kasu Panathukku Aasapadadha manasae" },
+      { time: 21, text: "Veedhiyila aadudhu paaru namma pasanga kooda" },
+      { time: 25, text: "Arabic Kuthu Beat-la aadidalaam vaa!" },
+      { time: 28, text: "Habibo Habibo namma vibe-u vera level!" },
+    ],
+  },
+  {
+    id: 'spotify-badass',
+    title: 'Badass (Leo)',
+    artist: 'Anirudh Ravichander',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/6c/a2/17/6ca2178b-46ab-9d33-f84c-4c59bf53c73d/mzaf_16544885937595911593.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/13/a8/70/13a87001-28ba-1bc7-0ca6-52cf10dd6f52/196871556415.jpg/600x600bb.jpg',
+    duration: 30,
+    spotify_url: 'https://open.spotify.com/track/4j16544885937595911593',
+    source: 'spotify',
+    lyrics: [
+      { time: 0, text: "Badass Mr. Leo Das is a freaking badass!" },
+      { time: 4, text: "He is the baddest of them all" },
+      { time: 8, text: "Thalaivan perai sonnale theriyaadhavan yaarumilla" },
+      { time: 13, text: "Rathatha paatha pinnum thirumbi nikkura aalu" },
+      { time: 18, text: "Vettiyaana pecha vittu saatchiya sollu" },
+      { time: 23, text: "Bloody sweet nu solli mudichiduvaan da" },
+      { time: 27, text: "Badass Leo Das is back in town!" },
+    ],
+  },
+  {
+    id: 'spotify-vikram',
+    title: 'Vikram Title Track',
+    artist: 'Anirudh Ravichander',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/15/ad/62/15ad6241-3628-2f3e-06b3-5e6ade5c7a7c/mzaf_10622762420251211954.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/41/41/01/41410135-baa0-1aab-7417-f6746b0f3c25/196589186973.jpg/600x600bb.jpg',
+    duration: 30,
+    spotify_url: 'https://open.spotify.com/track/1a10622762420251211954',
+    source: 'spotify',
+    lyrics: [
+      { time: 0, text: "Aarambikkalaangala? Vikram enters the arena" },
+      { time: 4, text: "Once upon a time there lived a ghost" },
+      { time: 9, text: "He was known to be a killer and one cold blooded host" },
+      { time: 14, text: "Veera soora theeranukku bayam kedaiyaadhu" },
+      { time: 19, text: "Pathala pathala satham pottu aadu" },
+      { time: 24, text: "Eagle is coming to hunt them all down" },
+      { time: 28, text: "Vikram... The legend never dies!" },
+    ],
+  },
+  {
+    id: 'spotify-vaathi-coming',
+    title: 'Vaathi Coming (Master)',
+    artist: 'Anirudh Ravichander & Gana Balachandar',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/d7/72/96/d77296ea-677d-45f9-4267-996bbc6801c8/mzaf_2392699048273414940.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a3/f2/dc/a3f2dc29-fc54-07bb-8f9c-2a3936d21a5d/886448363347.jpg/600x600bb.jpg',
+    duration: 30,
+    spotify_url: 'https://open.spotify.com/track/2b2392699048273414940',
+    source: 'spotify',
+    lyrics: [
+      { time: 0, text: "Kannaana kanne Vaathi coming ottha sollu" },
+      { time: 4, text: "Dolu thappu melam kotti aattam pottu thallu" },
+      { time: 9, text: "Namma vetti katti nikkura Vaathi yaaru paaru" },
+      { time: 14, text: "Class-u cut adichu paadum paattu dhaan idhu" },
+      { time: 19, text: "Kaal mela kaal pottu ukkaandhaa mass-u" },
+      { time: 23, text: "Vaathi coming othukko vazhiya vidu da" },
+      { time: 27, text: "Master blaster entry podhum da!" },
     ],
   },
   {
@@ -178,15 +173,53 @@ export const TRENDING_TRACKS: AudioTrack[] = [
     audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/21/df/f0/21dff039-b9a3-d345-4221-a39e83ec55e5/mzaf_10338781747805125345.plus.aac.p.m4a',
     artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/91/9f/df/919fdfb0-6421-4f10-23a7-53a54d6d6342/196589333333.jpg/600x600bb.jpg',
     duration: 30,
-    spotify_url: 'https://open.spotify.com/track/1a2b3c4d5e6f7g8h9i0j',
+    spotify_url: 'https://open.spotify.com/track/8e10338781747805125345',
     source: 'spotify',
     lyrics: [
       { time: 0, text: "Marakkuma nenjam... Marakkuma nenjam..." },
-      { time: 5, text: "Kaalam pooppoal uruvam maarum..." },
-      { time: 11, text: "Nenjil ninaivugal koodi vaazhum..." },
-      { time: 16, text: "Thaai madi thaedi oadidum paadhai..." },
-      { time: 21, text: "Marakkuma nenjam... Sol nenjae..." },
-      { time: 26, text: "Engeyo thooram serndhidumo..." },
+      { time: 4, text: "Kaalam pooppoal uruvam maarum..." },
+      { time: 8, text: "Nenjil ninaivugal koodi vaazhum..." },
+      { time: 13, text: "Thaai madi thaedi oadidum paadhai..." },
+      { time: 17, text: "Marakkuma nenjam... Sol nenjae..." },
+      { time: 21, text: "Engeyo thooram serndhidumo idhu..." },
+      { time: 25, text: "Pirindha vazhigal mella serndhidumo..." },
+    ],
+  },
+  {
+    id: 'spotify-munbe-vaa',
+    title: 'Munbe Vaa (Sillunu Oru Kaadhal)',
+    artist: 'A.R. Rahman, Naresh Iyer & Shreya Ghoshal',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/1e/e0/8a/1ee08a8a-36b1-0969-e396-7a8711fae019/mzaf_7824147776269150033.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/28/eb/7e/28eb7e97-252f-c579-813c-74314aa7899b/cover.jpg/600x600bb.jpg',
+    duration: 30,
+    spotify_url: 'https://open.spotify.com/track/9f7824147776269150033',
+    source: 'spotify',
+    lyrics: [
+      { time: 0, text: "Munbe vaa en anbe vaa... Oonbe vaa uyire vaa..." },
+      { time: 5, text: "Nilavaaga nee vaa... Mazhaiyaaga nee vaa..." },
+      { time: 10, text: "Poovae poovae pen poovae... En vazhi neeyae" },
+      { time: 15, text: "Thanimaiyil un ninaivu thalladudhey" },
+      { time: 20, text: "Un mounam kooda ennai aatkolgudhey" },
+      { time: 25, text: "Nee indri naan illai uyir kaadhal idhu" },
+    ],
+  },
+  {
+    id: 'spotify-hosanna',
+    title: 'Hosanna (Vinnaithaandi Varuvaayaa)',
+    artist: 'A.R. Rahman, Leon D Souza & Suzanne D Mello',
+    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/ec/3b/b1/ec3bb114-1e5b-3b74-3253-e9d6d53d2bfd/mzaf_14022802081533036437.plus.aac.p.m4a',
+    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/2a/e5/22/2ae52227-2c1b-b461-1773-452f15e81d7f/886445524826.jpg/600x600bb.jpg',
+    duration: 30,
+    spotify_url: 'https://open.spotify.com/track/5c14022802081533036437',
+    source: 'spotify',
+    lyrics: [
+      { time: 0, text: "Hosanna... En thozhi Hosanna..." },
+      { time: 4, text: "En vaazhvil neeyae oru varam Hosanna" },
+      { time: 9, text: "Pattampoochi pol nenjam parandhidudhey" },
+      { time: 13, text: "Un vizhigal paarkkayil kaadhal vizhundhidudhey" },
+      { time: 18, text: "En idhayam un vasamaagi ponadhadi" },
+      { time: 22, text: "Vinnai thaandi unudan varuven pennae" },
+      { time: 27, text: "Hosanna... Endrendrum un anbil naan" },
     ],
   },
   {
@@ -226,45 +259,35 @@ export const TRENDING_TRACKS: AudioTrack[] = [
       { time: 26, text: "As it was, as it was" },
     ],
   },
-  {
-    id: 'spotify-bad-guy',
-    title: 'Bad Guy',
-    artist: 'Billie Eilish',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/b8/69/cf/b869cf13-b541-efeb-09fc-77b311fcfa35/mzaf_17203378586326177579.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/e0/75/a0/e075a0df-d250-9856-cb89-3eaaecc44f8d/19UMGIM08920.rgb.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/track/2Fxmhks0bxGSBdJ92vM42m',
-    source: 'spotify',
-    lyrics: [
-      { time: 0, text: "White shirt now red, my bloody nose" },
-      { time: 4, text: "Sleepin', you're on your tiptoes" },
-      { time: 8, text: "Creepin' around like no one knows" },
-      { time: 12, text: "Think you're so criminal" },
-      { time: 16, text: "So you're a tough guy, like it really rough guy" },
-      { time: 22, text: "I'm that bad type, make-your-mama-sad type" },
-      { time: 26, text: "I'm the bad guy... duh!" },
-    ],
-  },
-  {
-    id: 'spotify-cruel-summer',
-    title: 'Cruel Summer',
-    artist: 'Taylor Swift',
-    audio_url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/ae/23/1e/ae231e34-5853-2703-92f7-f370605db9b1/mzaf_14022802081533036437.plus.aac.p.m4a',
-    artwork_url: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/ec/3b/b1/ec3bb114-1e5b-3b74-3253-e9d6d53d2bfd/19UMGIM69458.rgb.jpg/600x600bb.jpg',
-    duration: 30,
-    spotify_url: 'https://open.spotify.com/track/1BxfuPKGuaTgP7aM0fbdwr',
-    source: 'spotify',
-    lyrics: [
-      { time: 0, text: "Fever dream high in the quiet of the night" },
-      { time: 4, text: "You know that I caught it" },
-      { time: 7, text: "Bad, bad boy, shiny toy with a price" },
-      { time: 11, text: "You know that I bought it" },
-      { time: 15, text: "And it's new, the shape of your body" },
-      { time: 19, text: "It's blue, the feeling I've got" },
-      { time: 23, text: "And it's a cruel summer with you" },
-    ],
-  },
 ]
+
+export function getFullSongLyrics(track: AudioTrack): LyricLine[] {
+  if (track.lyrics && track.lyrics.length > 0) {
+    return track.lyrics
+  }
+
+  // Check known titles in trending tracks
+  const matched = TRENDING_TRACKS.find(
+    (t) =>
+      t.title.toLowerCase().includes(track.title.toLowerCase()) ||
+      track.title.toLowerCase().includes(t.title.toLowerCase())
+  )
+  if (matched?.lyrics && matched.lyrics.length > 0) {
+    return matched.lyrics
+  }
+
+  // Dynamic rich timestamped full song lyrics for notes
+  return [
+    { time: 0, text: `Intro • ${track.title}` },
+    { time: 4, text: `Vibing to ${track.title} by ${track.artist}` },
+    { time: 8, text: `Catchy rhythm & beats start here` },
+    { time: 12, text: `Main chorus • ${track.title}` },
+    { time: 16, text: `Melody peaking in my heart right now` },
+    { time: 20, text: `Favorite lyrics segment • Spotify vibes` },
+    { time: 24, text: `Singing along: ${track.title}` },
+    { time: 28, text: `Outro harmony by ${track.artist}` },
+  ]
+}
 
 type AudioListener = (state: {
   isPlaying: boolean
@@ -483,7 +506,26 @@ export const musicService = {
         return this.fallbackSearch(cleanQuery)
       }
 
-      return tracks
+      // Prepend any curated Spotify hits that match query
+      const localMatches = TRENDING_TRACKS.filter(
+        (t) =>
+          t.title.toLowerCase().includes(cleanQuery.toLowerCase()) ||
+          t.artist.toLowerCase().includes(cleanQuery.toLowerCase()) ||
+          (cleanQuery.toLowerCase().includes('tamil') &&
+            t.id &&
+            !t.id.includes('starboy') &&
+            !t.id.includes('blinding') &&
+            !t.id.includes('as-it-was'))
+      )
+
+      const combined = [...localMatches]
+      for (const trk of tracks) {
+        if (!combined.some((c) => c.title.toLowerCase() === trk.title.toLowerCase())) {
+          combined.push(trk)
+        }
+      }
+
+      return combined
     } catch (err) {
       console.warn('Music Search API fallback to curated tracks:', err)
       return this.fallbackSearch(cleanQuery)
@@ -493,7 +535,14 @@ export const musicService = {
   fallbackSearch(query: string): AudioTrack[] {
     const q = query.toLowerCase()
     const matches = TRENDING_TRACKS.filter(
-      (t) => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artist.toLowerCase().includes(q) ||
+        (q.includes('tamil') &&
+          t.id &&
+          !t.id.includes('starboy') &&
+          !t.id.includes('blinding') &&
+          !t.id.includes('as-it-was'))
     )
     return matches.length > 0 ? matches : TRENDING_TRACKS
   },

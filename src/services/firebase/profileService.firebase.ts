@@ -152,6 +152,10 @@ export const profileServiceFirebase = {
     updates: Partial<Pick<Profile, 'username' | 'full_name' | 'bio' | 'website' | 'avatar_url'>>
   ): Promise<Profile> {
     if (!userId) throw new Error('User ID is required.')
+    const currentUser = auth.currentUser
+    if (!currentUser || currentUser.uid !== userId) {
+      throw new Error('Unauthorized: You can only edit your own profile.')
+    }
 
     let cleanUsername: string | undefined = undefined
     if (updates.username) {
@@ -201,58 +205,8 @@ export const profileServiceFirebase = {
     return updatedData as Profile
   },
 
-  async uploadAvatar(userId: string, file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onerror = () => reject(new Error('Failed to read image file.'))
-      reader.onload = (e) => {
-        const img = new Image()
-        img.onerror = () => reject(new Error('Failed to parse image.'))
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas')
-            const maxDim = 320
-            let width = img.width
-            let height = img.height
-
-            if (width > height) {
-              if (width > maxDim) {
-                height = Math.round((height * maxDim) / width)
-                width = maxDim
-              }
-            } else {
-              if (height > maxDim) {
-                width = Math.round((width * maxDim) / height)
-                height = maxDim
-              }
-            }
-
-            canvas.width = width
-            canvas.height = height
-            const ctx = canvas.getContext('2d')
-            if (!ctx) {
-              const rawData = e.target?.result as string
-              this.updateProfile(userId, { avatar_url: rawData }).catch(() => {})
-              resolve(rawData)
-              return
-            }
-
-            ctx.drawImage(img, 0, 0, width, height)
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8)
-
-            // Save compressed photo directly into user profile
-            this.updateProfile(userId, { avatar_url: compressedDataUrl }).catch(() => {})
-            resolve(compressedDataUrl)
-          } catch (canvasErr) {
-            const rawData = e.target?.result as string
-            this.updateProfile(userId, { avatar_url: rawData }).catch(() => {})
-            resolve(rawData)
-          }
-        }
-        img.src = e.target?.result as string
-      }
-      reader.readAsDataURL(file)
-    })
+  async uploadAvatar(_userId: string, _file: File): Promise<string> {
+    throw new Error('Firebase Storage is disabled on the Spark free plan. Direct binary avatar uploads are not allowed.')
   },
 
   async getFollowStats(userId: string): Promise<{ followers: number; following: number }> {

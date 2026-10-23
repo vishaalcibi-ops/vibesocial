@@ -230,10 +230,12 @@ export const MusicPickerModal: React.FC<MusicPickerModalProps> = ({
           <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none' }}>
             {[
               { label: '🔥 All Hits', query: '' },
-              { label: '🎵 Tamil & Kollywood', query: 'Anirudh Tamil' },
-              { label: '🎧 Spotify Top 50', query: 'The Weeknd' },
-              { label: '✨ Bollywood', query: 'Arijit Singh' },
-              { label: '🚀 Viral Reels', query: 'Dua Lipa' },
+              { label: '🌴 Tamil Hits 🎵', query: 'tamil' },
+              { label: '⚡ Anirudh Mania', query: 'Anirudh' },
+              { label: '🎼 A.R. Rahman', query: 'A.R. Rahman' },
+              { label: '🎧 Leo & Jailer', query: 'Leo' },
+              { label: '💖 Tamil Melodies', query: 'Munbe Vaa' },
+              { label: '🌟 Spotify Top 50', query: 'Starboy' },
             ].map((genre) => (
               <button
                 key={genre.label}
@@ -242,11 +244,11 @@ export const MusicPickerModal: React.FC<MusicPickerModalProps> = ({
                 style={{
                   fontSize: '11px',
                   fontWeight: 600,
-                  padding: '3px 9px',
+                  padding: '4px 11px',
                   borderRadius: 'var(--radius-full, 999px)',
                   background: searchQuery === genre.query ? '#1db954' : 'var(--bg-elevated)',
                   color: searchQuery === genre.query ? '#fff' : 'var(--text-primary)',
-                  border: '1px solid var(--border-subtle)',
+                  border: searchQuery === genre.query ? '1px solid #1db954' : '1px solid var(--border-subtle)',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
@@ -415,6 +417,37 @@ export const MusicPickerModal: React.FC<MusicPickerModalProps> = ({
                     }}
                   >
                     {track.artist}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(29, 185, 84, 0.15)',
+                        color: '#1db954',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      ● Spotify
+                    </span>
+                    {track.lyrics && track.lyrics.length > 0 && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          background: 'rgba(225, 48, 108, 0.12)',
+                          color: 'var(--color-pink, #e1306c)',
+                        }}
+                      >
+                        📝 Full Lyrics
+                      </span>
+                    )}
                   </div>
                 </div>
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { X, Music, Play, Pause, Trash2, Scissors, FileText, Check, Sparkles } from 'lucide-react'
+import { X, Music, Play, Pause, Trash2, Scissors, FileText, Check, Sparkles, Search, Edit2 } from 'lucide-react'
 import type { InstagramNote, AudioTrack } from '../../types/database.types'
 import { noteService } from '../../services/noteService'
 import { useAuth } from '../../context/AuthContext'
 import { MusicPickerModal } from '../music/MusicPickerModal'
-import { globalAudioManager, generateTimedLyrics } from '../../services/musicService'
+import { globalAudioManager, getFullSongLyrics } from '../../services/musicService'
 
 interface CreateNoteModalProps {
   isOpen: boolean
@@ -31,6 +31,9 @@ export const CreateNoteModal: React.FC<CreateNoteModalProps> = ({
   const [isAudioPlaying, setIsAudioPlaying] = useState(false)
   const [isCloseFriends, setIsCloseFriends] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [lyricsSearch, setLyricsSearch] = useState('')
+  const [isCustomLyricMode, setIsCustomLyricMode] = useState(false)
+  const [customLyricInput, setCustomLyricInput] = useState('')
 
   // Populate existing note if editing
   useEffect(() => {
@@ -75,12 +78,12 @@ export const CreateNoteModal: React.FC<CreateNoteModalProps> = ({
     setSelectedTrack(track)
     setShowMusicPicker(false)
     setClipStart(0)
-    const lyrics =
-      track.lyrics && track.lyrics.length > 0
-        ? track.lyrics
-        : generateTimedLyrics(track.title, track.artist)
+    setLyricsSearch('')
+    setIsCustomLyricMode(false)
+    const lyrics = getFullSongLyrics(track)
     if (lyrics.length > 0) {
       setSelectedLyrics(lyrics[0].text)
+      setCustomLyricInput(lyrics[0].text)
     }
     globalAudioManager.playTrack(track, 0)
   }
@@ -151,11 +154,10 @@ export const CreateNoteModal: React.FC<CreateNoteModalProps> = ({
   if (!isOpen) return null
 
   const isFormValid = Boolean(text.trim() || selectedTrack)
-  const trackLyrics = selectedTrack
-    ? selectedTrack.lyrics && selectedTrack.lyrics.length > 0
-      ? selectedTrack.lyrics
-      : generateTimedLyrics(selectedTrack.title, selectedTrack.artist)
-    : []
+  const trackLyrics = selectedTrack ? getFullSongLyrics(selectedTrack) : []
+  const filteredLyrics = trackLyrics.filter((l) =>
+    l.text.toLowerCase().includes(lyricsSearch.toLowerCase().trim())
+  )
 
   const formatSec = (sec: number) => {
     const s = Math.floor(sec)
@@ -797,6 +799,150 @@ export const CreateNoteModal: React.FC<CreateNoteModalProps> = ({
               {/* TAB 2: Synchronized Interactive Lyrics */}
               {activeTab === 'lyrics' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Lyrics search & Custom Lyric Toggle */}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <Search size={12} style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search lyrics lines..."
+                        value={lyricsSearch}
+                        onChange={(e) => setLyricsSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '5px 8px 5px 24px',
+                          borderRadius: '8px',
+                          background: 'rgba(0,0,0,0.25)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-primary)',
+                          fontSize: '11px',
+                          outline: 'none',
+                        }}
+                      />
+                      {lyricsSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setLyricsSearch('')}
+                          style={{
+                            position: 'absolute',
+                            right: '6px',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomLyricMode(!isCustomLyricMode)}
+                      style={{
+                        padding: '5px 9px',
+                        borderRadius: '8px',
+                        background: isCustomLyricMode ? 'var(--color-pink, #e1306c)' : 'rgba(255,255,255,0.08)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Edit2 size={11} />
+                      <span>{isCustomLyricMode ? 'List' : 'Custom'}</span>
+                    </button>
+                  </div>
+
+                  {/* Custom Lyric Input Panel */}
+                  {isCustomLyricMode && (
+                    <div
+                      style={{
+                        background: 'rgba(225, 48, 108, 0.08)',
+                        border: '1px solid rgba(225, 48, 108, 0.3)',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-pink)' }}>
+                        ✍️ Post Custom Song Lyric
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Type any line from this song to post..."
+                        value={customLyricInput}
+                        onChange={(e) => setCustomLyricInput(e.target.value.slice(0, 80))}
+                        maxLength={80}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-primary)',
+                          fontSize: '12px',
+                          outline: 'none',
+                        }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                          {customLyricInput.length}/80 chars
+                        </span>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (customLyricInput.trim()) {
+                                handleApplyLyricToThought(customLyricInput.trim())
+                              }
+                            }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: 'none',
+                              color: 'var(--text-primary)',
+                              fontSize: '10px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Set Thought
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (customLyricInput.trim()) {
+                                setSelectedLyrics(customLyricInput.trim())
+                                setIsCustomLyricMode(false)
+                              }
+                            }}
+                            style={{
+                              padding: '3px 10px',
+                              borderRadius: '4px',
+                              background: 'var(--color-pink, #e1306c)',
+                              border: 'none',
+                              color: '#fff',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Attach Lyric
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lyrics Lines List */}
                   <div
                     style={{
                       maxHeight: '160px',
@@ -809,87 +955,93 @@ export const CreateNoteModal: React.FC<CreateNoteModalProps> = ({
                       gap: '4px',
                     }}
                   >
-                    {trackLyrics.map((lyric, idx) => {
-                      const isLineActive =
-                        isAudioPlaying &&
-                        audioCurrentTime >= lyric.time &&
-                        (idx === trackLyrics.length - 1 || audioCurrentTime < trackLyrics[idx + 1].time)
-                      const isSelected = selectedLyrics === lyric.text
+                    {filteredLyrics.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                        No lyrics found matching "{lyricsSearch}"
+                      </div>
+                    ) : (
+                      filteredLyrics.map((lyric, idx) => {
+                        const isLineActive =
+                          isAudioPlaying &&
+                          audioCurrentTime >= lyric.time &&
+                          (idx === filteredLyrics.length - 1 || audioCurrentTime < filteredLyrics[idx + 1].time)
+                        const isSelected = selectedLyrics === lyric.text
 
-                      return (
-                        <div
-                          key={idx}
-                          onClick={() => handleSelectLyricLine(lyric.time, lyric.text)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '8px',
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            background: isLineActive
-                              ? 'rgba(225, 48, 108, 0.25)'
-                              : isSelected
-                              ? 'rgba(255, 255, 255, 0.08)'
-                              : 'transparent',
-                            border: isSelected ? '1px solid rgba(225, 48, 108, 0.5)' : '1px solid transparent',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                            <span
-                              style={{
-                                fontSize: '10px',
-                                color: isLineActive ? 'var(--color-pink)' : 'var(--text-muted)',
-                                fontWeight: 600,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {formatSec(lyric.time)}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '12px',
-                                fontWeight: isLineActive || isSelected ? 700 : 500,
-                                color: isLineActive ? '#fff' : isSelected ? 'var(--color-pink)' : 'var(--text-primary)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {lyric.text}
-                            </span>
-                          </div>
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => handleSelectLyricLine(lyric.time, lyric.text)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              background: isLineActive
+                                ? 'rgba(225, 48, 108, 0.25)'
+                                : isSelected
+                                ? 'rgba(255, 255, 255, 0.08)'
+                                : 'transparent',
+                              border: isSelected ? '1px solid rgba(225, 48, 108, 0.5)' : '1px solid transparent',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  color: isLineActive ? 'var(--color-pink)' : 'var(--text-muted)',
+                                  fontWeight: 600,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {formatSec(lyric.time)}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '12px',
+                                  fontWeight: isLineActive || isSelected ? 700 : 500,
+                                  color: isLineActive ? '#fff' : isSelected ? 'var(--color-pink)' : 'var(--text-primary)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {lyric.text}
+                              </span>
+                            </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                            {isSelected && <Check size={13} color="var(--color-pink)" />}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleApplyLyricToThought(lyric.text)
-                              }}
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.08)',
-                                border: 'none',
-                                borderRadius: '4px',
-                                color: 'var(--text-muted)',
-                                fontSize: '10px',
-                                padding: '2px 5px',
-                                cursor: 'pointer',
-                              }}
-                              title="Copy this lyric to thought text"
-                            >
-                              Quote
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                              {isSelected && <Check size={13} color="var(--color-pink)" />}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleApplyLyricToThought(lyric.text)
+                                }}
+                                style={{
+                                  background: 'rgba(255, 255, 255, 0.08)',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  color: 'var(--text-muted)',
+                                  fontSize: '10px',
+                                  padding: '2px 5px',
+                                  cursor: 'pointer',
+                                }}
+                                title="Copy this lyric to thought text"
+                              >
+                                Quote
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })
+                    )}
                   </div>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
-                    Tap any lyric line to sync audio clip and attach to note
+                    Tap any full song lyric line to sync audio clip and attach to your note
                   </span>
                 </div>
               )}

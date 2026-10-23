@@ -19,7 +19,7 @@ import type { Notification, Profile } from '../../types/database.types'
 export interface CreateNotificationParams {
   recipientId: string
   actorId: string
-  type: 'follow' | 'like_post' | 'comment_post' | 'like_reel' | 'message' | 'follow_request' | 'follow_request_accepted'
+  type: 'follow' | 'like_post' | 'comment_post' | 'like_reel' | 'message' | 'follow_request' | 'follow_request_accepted' | 'like_story' | 'mention'
   resourceId?: string | null
   resourceType?: string | null
 }
@@ -241,6 +241,12 @@ export const notificationServiceFirebase = {
         case 'like_reel':
           notifId = `like_reel_${actorId}_${resourceId || 'r'}`
           break
+        case 'like_story':
+          notifId = `like_story_${actorId}_${resourceId || 's'}`
+          break
+        case 'mention':
+          notifId = `mention_${actorId}_${resourceId || Date.now()}`
+          break
         case 'message':
           notifId = `msg_${resourceId || 'dm'}_${actorId}`
           break
@@ -276,6 +282,63 @@ export const notificationServiceFirebase = {
       await deleteDoc(notifRef)
     } catch {
       // Non-blocking
+    }
+  },
+
+  /**
+   * Automatically resolve @mentions in text and explicit user IDs to send mention notifications
+   */
+  async notifyMentionedUsers({
+    text,
+    actorId,
+    resourceId = null,
+    resourceType = 'post',
+    explicitUserIds = [],
+  }: {
+    text?: string
+    actorId: string
+    resourceId?: string | null
+    resourceType?: string
+    explicitUserIds?: string[]
+  }): Promise<void> {
+    if (!actorId) return
+
+    const recipientIds = new Set<string>(
+      (explicitUserIds || []).filter((id) => id && id !== actorId)
+    )
+
+    if (text) {
+      const matches = text.match(/@([a-zA-Z0-9_.]+)/g)
+      if (matches && matches.length > 0) {
+        for (const rawMatch of matches) {
+          const cleanUsername = rawMatch.replace(/^@/, '').toLowerCase().trim()
+          if (!cleanUsername) continue
+
+          try {
+            const usersRef = collection(db, 'users')
+            const q = query(usersRef, where('username', '==', cleanUsername), firestoreLimit(1))
+            const snap = await getDocs(q)
+            if (!snap.empty) {
+              const targetUserId = snap.docs[0].id
+              if (targetUserId && targetUserId !== actorId) {
+                recipientIds.add(targetUserId)
+              }
+            }
+          } catch {
+            // Non-blocking query
+          }
+        }
+      }
+    }
+
+    for (const recipientId of recipientIds) {
+      await this.createNotification({
+        recipientId,
+        actorId,
+        type: 'mention',
+        resourceId,
+        resourceType,
+      })
     }
   },
 }

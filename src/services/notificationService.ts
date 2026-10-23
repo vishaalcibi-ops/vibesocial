@@ -145,4 +145,16 @@ export const notificationService = {
       console.warn('Could not insert Supabase notification:', e)
     }
   },
+
+  async notifyMentionedUsers(params: {
+    text?: string
+    actorId: string
+    resourceId?: string | null
+    resourceType?: string
+    explicitUserIds?: string[]
+  }): Promise<void> {
+    if (getBackendProvider() === 'firebase') {
+      return notificationServiceFirebase.notifyMentionedUsers(params)
+    }
+  },
 }

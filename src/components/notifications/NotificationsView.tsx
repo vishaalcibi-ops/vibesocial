@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Heart, MessageCircle, UserPlus, Film, CheckCheck, Bell, MessageSquare, UserCheck } from 'lucide-react'
+import { Heart, MessageCircle, UserPlus, Film, CheckCheck, Bell, MessageSquare, UserCheck, AtSign } from 'lucide-react'
 import type { Notification, FollowRequest } from '../../types/database.types'
 import { notificationService } from '../../services/notificationService'
 import { profileService } from '../../services/profileService'
@@ -123,6 +123,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
         return <UserCheck size={16} color="#10b981" />
       case 'like_reel':
         return <Film size={16} color="#8b5cf6" />
+      case 'like_story':
+        return <Heart size={16} color="#ec4899" fill="#ec4899" />
+      case 'mention':
+        return <AtSign size={16} color="#f59e0b" />
       case 'message':
         return <MessageSquare size={16} color="#10b981" />
       default:
@@ -134,6 +138,13 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     switch (notif.type) {
       case 'like_post':
         return 'liked your post.'
+      case 'like_story':
+        return 'liked your story.'
+      case 'mention':
+        if (notif.resource_type === 'story') return 'mentioned you in a story.'
+        if (notif.resource_type === 'note') return 'mentioned you in a note.'
+        if (notif.resource_type === 'post_comment') return 'mentioned you in a comment.'
+        return 'mentioned you in a post.'
       case 'comment_post':
         return 'commented on your post.'
       case 'follow':

@@ -133,6 +133,15 @@ export interface Story {
   stickers?: any[] | null
   is_ai_labeled?: boolean
   is_paid_partnership?: boolean
+  likes_count?: number
+  is_liked_by_me?: boolean
+}
+
+export interface StoryLike {
+  story_id: string
+  user_id: string
+  created_at: string
+  user?: Profile
 }
 
 export interface StoryView {
@@ -215,7 +224,7 @@ export interface Notification {
   id: string
   recipient_id: string
   actor_id: string
-  type: 'follow' | 'like_post' | 'comment_post' | 'like_reel' | 'message' | 'follow_request' | 'follow_request_accepted'
+  type: 'follow' | 'like_post' | 'comment_post' | 'like_reel' | 'message' | 'follow_request' | 'follow_request_accepted' | 'like_story' | 'mention'
   resource_id: string | null
   resource_type: string | null
   is_read: boolean

@@ -213,5 +213,26 @@ export const storyService = {
     }
     return []
   },
+
+  async toggleLikeStory(storyId: string, userId: string, authorId: string, isHeld?: boolean): Promise<boolean> {
+    if (getBackendProvider() === 'firebase') {
+      return await storyServiceFirebase.toggleLikeStory(storyId, userId, authorId, isHeld)
+    }
+    return false
+  },
+
+  async isStoryLiked(storyId: string, userId: string): Promise<boolean> {
+    if (getBackendProvider() === 'firebase') {
+      return await storyServiceFirebase.isStoryLiked(storyId, userId)
+    }
+    return false
+  },
+
+  async getStoryLikes(storyId: string): Promise<string[]> {
+    if (getBackendProvider() === 'firebase') {
+      return await storyServiceFirebase.getStoryLikes(storyId)
+    }
+    return []
+  },
 }
 

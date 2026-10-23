@@ -12,6 +12,7 @@ import type { InstagramNote, AudioTrack, Profile } from '../types/database.types
 import { TRENDING_TRACKS } from './musicService'
 import { closeFriendsService } from './closeFriendsService'
 import { profileService } from './profileService'
+import { notificationService } from './notificationService'
 
 const LOCAL_STORAGE_NOTES_KEY = 'vibesocial_instagram_notes'
 
@@ -327,6 +328,16 @@ export const noteService = {
     const existing = this.getStoredNotes().filter((n) => n.user_id !== userId)
     existing.unshift(note)
     this.setStoredNotes(existing)
+
+    // Notify users mentioned in note text
+    if (note.text && note.text.includes('@')) {
+      notificationService.notifyMentionedUsers({
+        text: note.text,
+        actorId: userId,
+        resourceId: noteId,
+        resourceType: 'note',
+      }).catch(() => {})
+    }
 
     return note
   },

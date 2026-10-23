@@ -12,6 +12,7 @@ import {
 import { db, auth, isFirebaseConfigured } from './firebaseConfig'
 import type { Story, StoryView, Profile, AudioTrack } from '../../types/database.types'
 import { closeFriendsService } from '../closeFriendsService'
+import { notificationServiceFirebase } from './notificationService.firebase'
 
 export interface CreateStoryParams {
   authorId: string
@@ -57,14 +58,28 @@ export const storyServiceFirebase = {
       let snap
       try {
         const q = query(storiesRef, orderBy('createdAt', 'desc'), firestoreLimit(50))
-        snap = await getDocs(q)
+        snap = await Promise.race([
+          getDocs(q),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 2500)
+          ),
+        ])
       } catch (queryErr: any) {
         if (queryErr?.code === 'permission-denied' || queryErr?.message?.includes('insufficient permissions')) {
           console.warn('Stories query blocked by Firestore security rules. Publish firestore.rules to Firebase Console to enable.')
           return []
         }
+        if (queryErr?.message === 'timeout') {
+          return []
+        }
         console.warn('Ordered stories query failed, falling back to direct collection fetch:', queryErr)
-        snap = await getDocs(storiesRef)
+        snap = await Promise.race([
+          getDocs(storiesRef),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 2000)
+          ),
+        ]).catch(() => null)
+        if (!snap) return []
       }
 
       const nowTime = Date.now()
@@ -105,16 +120,24 @@ export const storyServiceFirebase = {
 
       if (validStories.length === 0) return []
 
-      // Check view status for each story if activeUserId is present
+      // Check view and like status for each story if activeUserId is present
       const viewedStoryIds = new Set<string>()
+      const likedStoryIds = new Set<string>()
       if (activeUserId) {
         await Promise.all(
           validStories.map(async ({ id }) => {
             try {
               const viewRef = doc(db, 'stories', id, 'views', activeUserId)
-              const viewSnap = await getDoc(viewRef)
-              if (viewSnap.exists()) {
+              const likeRef = doc(db, 'stories', id, 'likes', activeUserId)
+              const [viewSnap, likeSnap] = await Promise.all([
+                getDoc(viewRef).catch(() => null),
+                getDoc(likeRef).catch(() => null),
+              ])
+              if (viewSnap && viewSnap.exists()) {
                 viewedStoryIds.add(id)
+              }
+              if (likeSnap && likeSnap.exists()) {
+                likedStoryIds.add(id)
               }
             } catch {
               // Ignore view read permission error if any
@@ -128,6 +151,7 @@ export const storyServiceFirebase = {
 
       for (const { id, data } of validStories) {
         const isViewed = viewedStoryIds.has(id)
+        const isLiked = likedStoryIds.has(id)
         const authorProfile: Profile = {
           id: data.authorId,
           username: data.authorUsername || 'user',
@@ -157,6 +181,7 @@ export const storyServiceFirebase = {
           stickers: data.stickers || null,
           is_ai_labeled: Boolean(data.isAiLabeled),
           is_paid_partnership: Boolean(data.isPaidPartnership),
+          is_liked_by_me: isLiked,
         }
 
         if (!groupMap.has(data.authorId)) {
@@ -231,7 +256,7 @@ export const storyServiceFirebase = {
       trimmedUrl.startsWith('https://')
 
     if (!isValidUrl) {
-      throw new Error('Invalid media format. Please upload a photo or use a valid web link.')
+      throw new Error('Invalid media format. Please upload a photo or use a valid web link with http:// or https://.')
     }
 
     // Lookup author profile to denormalize
@@ -301,6 +326,30 @@ export const storyServiceFirebase = {
     }
 
     await setDoc(storyDocRef, storyData)
+
+    // Notify mentioned users from story stickers or caption/overlay
+    try {
+      const explicitUserIds: string[] = []
+      if (Array.isArray(stickers)) {
+        stickers.forEach((s: any) => {
+          if (s.type === 'mention' && s.data?.userId) {
+            explicitUserIds.push(s.data.userId)
+          }
+        })
+      }
+      const mentionText = [caption, textOverlay].filter(Boolean).join(' ')
+      if (mentionText || explicitUserIds.length > 0) {
+        notificationServiceFirebase.notifyMentionedUsers({
+          text: mentionText,
+          actorId: authorId,
+          resourceId: storyDocRef.id,
+          resourceType: 'story',
+          explicitUserIds,
+        }).catch(() => {})
+      }
+    } catch (e) {
+      // Non-blocking mention notifications
+    }
 
     const authorProfile: Profile = {
       id: authorId,
@@ -453,6 +502,106 @@ export const storyServiceFirebase = {
       })
     } catch (err) {
       console.error('Error fetching archived stories:', err)
+      return []
+    }
+  },
+
+  async toggleLikeStory(storyId: string, userId: string, authorId: string, isHeld?: boolean): Promise<boolean> {
+    if (!isFirebaseConfigured() || !storyId || !userId) return false
+
+    const currentUser = auth.currentUser
+    if (currentUser && currentUser.uid !== userId) {
+      throw new Error('Unauthorized like operation.')
+    }
+
+    try {
+      const likeRef = doc(db, 'stories', storyId, 'likes', userId)
+      const likeSnap = await getDoc(likeRef).catch(() => null)
+
+      if (likeSnap && likeSnap.exists()) {
+        if (isHeld) {
+          // Keep liked, refresh notification for the story author
+          if (authorId && authorId !== userId) {
+            await notificationServiceFirebase.createNotification({
+              recipientId: authorId,
+              actorId: userId,
+              type: 'like_story',
+              resourceId: storyId,
+              resourceType: 'story',
+            })
+          }
+          return true
+        }
+
+        // Unlike
+        await deleteDoc(likeRef)
+        if (authorId && authorId !== userId) {
+          await notificationServiceFirebase.deleteNotification(authorId, `like_story_${userId}_${storyId}`)
+        }
+        return false
+      } else {
+        // Like
+        await setDoc(likeRef, {
+          userId,
+          storyId,
+          isHeld: Boolean(isHeld),
+          createdAt: new Date().toISOString(),
+        })
+
+        if (authorId && authorId !== userId) {
+          await notificationServiceFirebase.createNotification({
+            recipientId: authorId,
+            actorId: userId,
+            type: 'like_story',
+            resourceId: storyId,
+            resourceType: 'story',
+          })
+        }
+        return true
+      }
+    } catch (err) {
+      console.warn('Error in toggleLikeStory:', err)
+      const storageKey = `vibesocial_story_like_${storyId}_${userId}`
+      const isCurrentlyLiked = typeof localStorage !== 'undefined' && localStorage.getItem(storageKey) === 'true'
+      if (isCurrentlyLiked && !isHeld) {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(storageKey)
+        return false
+      } else {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(storageKey, 'true')
+        if (authorId && authorId !== userId) {
+          notificationServiceFirebase.createNotification({
+            recipientId: authorId,
+            actorId: userId,
+            type: 'like_story',
+            resourceId: storyId,
+            resourceType: 'story',
+          }).catch(() => {})
+        }
+        return true
+      }
+    }
+  },
+
+  async isStoryLiked(storyId: string, userId: string): Promise<boolean> {
+    if (!isFirebaseConfigured() || !storyId || !userId) return false
+    try {
+      const likeRef = doc(db, 'stories', storyId, 'likes', userId)
+      const snap = await getDoc(likeRef)
+      if (snap.exists()) return true
+    } catch {
+      // Fallback
+    }
+    const storageKey = `vibesocial_story_like_${storyId}_${userId}`
+    return typeof localStorage !== 'undefined' && localStorage.getItem(storageKey) === 'true'
+  },
+
+  async getStoryLikes(storyId: string): Promise<string[]> {
+    if (!isFirebaseConfigured() || !storyId) return []
+    try {
+      const likesRef = collection(db, 'stories', storyId, 'likes')
+      const snap = await getDocs(likesRef)
+      return snap.docs.map((d) => d.id || d.data().userId)
+    } catch {
       return []
     }
   },

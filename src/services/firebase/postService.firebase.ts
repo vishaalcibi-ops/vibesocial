@@ -329,6 +329,16 @@ export const postServiceFirebase = {
 
     await setDoc(postDocRef, postData)
 
+    // Notify mentioned users in post caption
+    if (cleanCaption && cleanCaption.includes('@')) {
+      notificationServiceFirebase.notifyMentionedUsers({
+        text: cleanCaption,
+        actorId: currentUser.uid,
+        resourceId: postDocRef.id,
+        resourceType: 'post',
+      }).catch(() => {})
+    }
+
     return mapDocToPost(postDocRef.id, postData, false, false)
   },
 
@@ -609,6 +619,16 @@ export const postServiceFirebase = {
           resourceId: postId,
           resourceType: 'post',
         })
+      }
+
+      // Notify users mentioned in comments
+      if (cleanContent.includes('@')) {
+        notificationServiceFirebase.notifyMentionedUsers({
+          text: cleanContent,
+          actorId: currentUser.uid,
+          resourceId: postId,
+          resourceType: 'post_comment',
+        }).catch(() => {})
       }
 
       return commentResult

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX, Link2 } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX, Link2, Heart, Send } from 'lucide-react'
 import type { Story, StoryView } from '../../types/database.types'
 import { storyService } from '../../services/storyService'
 import { useAuth } from '../../context/AuthContext'
@@ -37,9 +37,20 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   const [showViewers, setShowViewers] = useState(false)
   const [mediaError, setMediaError] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
+  const [isLiked, setIsLiked] = useState(false)
+  const [storyLikes, setStoryLikes] = useState<string[]>([])
+  const [floatingHearts, setFloatingHearts] = useState<{ id: number; left: number; size: number; duration: number; isSuper?: boolean }[]>([])
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [drawerTab, setDrawerTab] = useState<'viewers' | 'likes'>('viewers')
+  const [replyText, setReplyText] = useState('')
+  const [isHoldingLike, setIsHoldingLike] = useState(false)
+
   const timerRef = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const holdTimerRef = useRef<number | null>(null)
+  const isHeldTriggeredRef = useRef(false)
+  const toastTimeoutRef = useRef<number | null>(null)
 
   const hasStories = Boolean(storyGroup && storyGroup.stories.length > 0)
   const currentStory = hasStories && storyGroup ? storyGroup.stories[currentIndex] : null
@@ -128,7 +139,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleNext, handlePrev, onClose])
 
-  // Mark viewed and load viewers if owner
+  // Mark viewed and load viewers/likes
   useEffect(() => {
     if (!currentStory) return
 
@@ -139,7 +150,109 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     if (isOwner) {
       storyService.getStoryViewers(currentStory.id).then(setViewers)
     }
+
+    if (user) {
+      storyService.isStoryLiked(currentStory.id, user.id).then(setIsLiked)
+    } else {
+      setIsLiked(false)
+    }
+
+    storyService.getStoryLikes(currentStory.id).then(setStoryLikes)
   }, [currentStory, user, isOwner])
+
+  const showToast = (msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setToastMessage(msg)
+    toastTimeoutRef.current = window.setTimeout(() => setToastMessage(null), 2500)
+  }
+
+  const triggerFloatingHearts = (isSuper: boolean = false) => {
+    const count = isSuper ? 16 : 6
+    const newHearts = Array.from({ length: count }, (_, i) => ({
+      id: Date.now() + i + Math.random(),
+      left: 72 + (Math.random() * 22 - 11),
+      size: isSuper ? 24 + Math.random() * 20 : 18 + Math.random() * 12,
+      duration: isSuper ? 1.2 + Math.random() * 0.8 : 0.9 + Math.random() * 0.6,
+      isSuper,
+    }))
+    setFloatingHearts((prev) => [...prev, ...newHearts])
+    setTimeout(() => {
+      setFloatingHearts((prev) => prev.filter((h) => !newHearts.some((nh) => nh.id === h.id)))
+    }, 2200)
+  }
+
+  const handleLikeAction = async (isHeld: boolean = false) => {
+    if (!currentStory || !user) return
+
+    try {
+      if (isHeld) {
+        setIsLiked(true)
+        triggerFloatingHearts(true)
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([40, 50, 40])
+        }
+        showToast(`💖 Super-liked! @${storyGroup?.author?.username || 'user'} notified`)
+        await storyService.toggleLikeStory(currentStory.id, user.id, currentStory.author_id, true)
+        const updatedLikes = await storyService.getStoryLikes(currentStory.id)
+        setStoryLikes(updatedLikes)
+      } else {
+        const nextLiked = !isLiked
+        setIsLiked(nextLiked)
+        if (nextLiked) {
+          triggerFloatingHearts(false)
+          showToast('❤️ Liked story')
+        }
+        await storyService.toggleLikeStory(currentStory.id, user.id, currentStory.author_id, false)
+        const updatedLikes = await storyService.getStoryLikes(currentStory.id)
+        setStoryLikes(updatedLikes)
+      }
+    } catch (err) {
+      console.error('Failed to like story:', err)
+    }
+  }
+
+  const handleLikePointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    setIsPaused(true)
+    setIsHoldingLike(true)
+    isHeldTriggeredRef.current = false
+
+    holdTimerRef.current = window.setTimeout(() => {
+      isHeldTriggeredRef.current = true
+      setIsHoldingLike(false)
+      handleLikeAction(true)
+    }, 550)
+  }
+
+  const handleLikePointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    setIsPaused(false)
+    setIsHoldingLike(false)
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+    if (!isHeldTriggeredRef.current) {
+      handleLikeAction(false)
+    }
+  }
+
+  const handleLikePointerLeave = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    setIsPaused(false)
+    setIsHoldingLike(false)
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+  }
+
+  const handleSendReply = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!replyText.trim() || !currentStory || !user) return
+    showToast(`Sent reply to @${storyGroup?.author?.username || 'user'}`)
+    setReplyText('')
+  }
 
   // Pause / resume video playback
   useEffect(() => {
@@ -714,7 +827,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           </button>
         </div>
 
-        {/* Story Caption & Viewers count */}
+        {/* Story Caption & Viewers / Likes bar */}
         <div
           style={{
             position: 'absolute',
@@ -722,6 +835,9 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             left: '16px',
             right: '16px',
             zIndex: 35,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
           }}
         >
           {currentStory.caption && (
@@ -734,7 +850,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                 color: 'white',
                 fontSize: '13px',
                 lineHeight: 1.4,
-                marginBottom: '10px',
                 border: '1px solid rgba(255,255,255,0.1)',
               }}
             >
@@ -742,33 +857,149 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             </div>
           )}
 
-          {isOwner && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowViewers(!showViewers)
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                color: 'white',
-                background: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(8px)',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: '12px',
-                fontWeight: 600,
-                border: '1px solid rgba(255,255,255,0.15)',
-              }}
-            >
-              <Eye size={14} />
-              <span>{viewers.length} {viewers.length === 1 ? 'view' : 'views'}</span>
-            </button>
+          {isOwner ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDrawerTab('viewers')
+                  setShowViewers(true)
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: 'white',
+                  background: 'rgba(0,0,0,0.6)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Eye size={14} />
+                <span>{viewers.length} {viewers.length === 1 ? 'view' : 'views'}</span>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDrawerTab('likes')
+                  setShowViewers(true)
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: storyLikes.length > 0 ? '#ef4444' : 'white',
+                  background: 'rgba(0,0,0,0.6)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Heart size={14} fill={storyLikes.length > 0 ? '#ef4444' : 'none'} />
+                <span>{storyLikes.length} {storyLikes.length === 1 ? 'like' : 'likes'}</span>
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <form
+                onSubmit={handleSendReply}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', position: 'relative' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onFocus={() => setIsPaused(true)}
+                  onBlur={() => setIsPaused(false)}
+                  placeholder={`Reply to ${storyGroup?.author?.username || 'story'}...`}
+                  style={{
+                    width: '100%',
+                    padding: '8px 38px 8px 14px',
+                    borderRadius: '24px',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    background: 'rgba(0, 0, 0, 0.55)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
+                />
+                {replyText.trim() && (
+                  <button
+                    type="submit"
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      background: 'none',
+                      border: 'none',
+                      color: '#ec4899',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Send size={15} />
+                  </button>
+                )}
+              </form>
+
+              {/* Heart / Like Story Button with Hold to Super Like */}
+              <button
+                type="button"
+                onPointerDown={handleLikePointerDown}
+                onPointerUp={handleLikePointerUp}
+                onPointerLeave={handleLikePointerLeave}
+                title="Tap to like, hold for super like notification"
+                aria-label={isLiked ? "Unlike story" : "Like story"}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  border: isLiked ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255, 255, 255, 0.25)',
+                  background: isLiked
+                    ? 'radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, rgba(0, 0, 0, 0.6) 100%)'
+                    : 'rgba(0, 0, 0, 0.55)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transform: isHoldingLike ? 'scale(1.28)' : isLiked ? 'scale(1.06)' : 'scale(1)',
+                  transition: 'transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.2s',
+                  boxShadow: isHoldingLike
+                    ? '0 0 16px rgba(239, 68, 68, 0.8)'
+                    : isLiked
+                    ? '0 0 10px rgba(239, 68, 68, 0.4)'
+                    : 'none',
+                  flexShrink: 0,
+                }}
+              >
+                <Heart
+                  size={20}
+                  fill={isLiked ? '#ef4444' : 'none'}
+                  color={isLiked ? '#ef4444' : 'white'}
+                  style={{
+                    filter: isLiked ? 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.8))' : 'none',
+                    transition: 'transform 0.15s ease',
+                  }}
+                />
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Viewers Drawer */}
+        {/* Viewers & Likes Drawer */}
         {showViewers && (
           <div
             style={{
@@ -789,46 +1020,207 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span style={{ fontWeight: 700, fontSize: '15px' }}>
-                Viewers ({viewers.length})
-              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setDrawerTab('viewers')}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '16px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    background: drawerTab === 'viewers' ? 'var(--primary, #6366f1)' : 'var(--bg-surface)',
+                    color: drawerTab === 'viewers' ? 'white' : 'var(--text-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Viewers ({viewers.length})
+                </button>
+                <button
+                  onClick={() => setDrawerTab('likes')}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '16px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    background: drawerTab === 'likes' ? '#ef4444' : 'var(--bg-surface)',
+                    color: drawerTab === 'likes' ? 'white' : 'var(--text-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Heart size={12} fill="currentColor" /> Likes ({storyLikes.length})
+                </button>
+              </div>
               <button onClick={() => setShowViewers(false)}>
                 <X size={18} />
               </button>
             </div>
-            {viewers.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
-                No views on this story yet.
-              </p>
+
+            {drawerTab === 'viewers' ? (
+              viewers.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
+                  No views on this story yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {viewers.map((v) => {
+                    const hasLiked = storyLikes.includes(v.viewer_id)
+                    return (
+                      <div
+                        key={`${v.story_id}_${v.viewer_id}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 0',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <img
+                            src={v.viewer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
+                            alt="Viewer"
+                            style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 600 }}>{v.viewer?.username || 'User'}</span>
+                            {hasLiked && (
+                              <span title="Liked this story">
+                                <Heart size={14} fill="#ef4444" color="#ef4444" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {formatRelativeTime(v.viewed_at)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {viewers.map((v) => (
-                  <div
-                    key={`${v.story_id}_${v.viewer_id}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '6px 0',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img
-                        src={v.viewer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
-                        alt="Viewer"
-                        style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>{v.viewer?.username || 'User'}</span>
-                    </div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      {formatRelativeTime(v.viewed_at)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              storyLikes.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
+                  No likes on this story yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {storyLikes.map((userId) => {
+                    const matchedViewer = viewers.find((v) => v.viewer_id === userId)
+                    const username = matchedViewer?.viewer?.username || `User (${userId.slice(0, 6)})`
+                    const avatar = matchedViewer?.viewer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
+                    return (
+                      <div
+                        key={`like_${userId}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 0',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <img
+                            src={avatar}
+                            alt={username}
+                            style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                          <span style={{ fontSize: '13px', fontWeight: 600 }}>{username}</span>
+                        </div>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '12px', fontWeight: 600 }}>
+                          <Heart size={14} fill="#ef4444" color="#ef4444" /> Liked
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
             )}
           </div>
         )}
+
+        {/* Toast notification banner */}
+        {toastMessage && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '90px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(10px)',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 600,
+              padding: '6px 14px',
+              borderRadius: '20px',
+              zIndex: 60,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              pointerEvents: 'none',
+              animation: 'fadeInOut 2.5s ease forwards',
+            }}
+          >
+            {toastMessage}
+          </div>
+        )}
+
+        {/* Floating animated hearts */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            overflow: 'hidden',
+            zIndex: 50,
+          }}
+        >
+          {floatingHearts.map((h) => (
+            <div
+              key={h.id}
+              style={{
+                position: 'absolute',
+                bottom: '40px',
+                left: `${h.left}%`,
+                animation: `floatStoryHeart ${h.duration}s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                filter: h.isSuper ? 'drop-shadow(0 0 10px rgba(236, 72, 153, 0.9))' : 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.7))',
+              }}
+            >
+              <Heart
+                size={h.size}
+                fill={h.isSuper ? '#ec4899' : '#ef4444'}
+                color={h.isSuper ? '#f472b6' : '#f87171'}
+              />
+            </div>
+          ))}
+        </div>
+
+        <style>{`
+          @keyframes floatStoryHeart {
+            0% {
+              transform: translateY(0) scale(0.6) rotate(0deg);
+              opacity: 0;
+            }
+            15% {
+              opacity: 1;
+              transform: translateY(-20px) scale(1.1) rotate(-8deg);
+            }
+            70% {
+              opacity: 0.9;
+            }
+            100% {
+              transform: translateY(-340px) scale(1.4) rotate(16deg);
+              opacity: 0;
+            }
+          }
+        `}</style>
       </div>
     </div>
   )
