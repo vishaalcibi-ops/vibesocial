@@ -30,11 +30,14 @@ import { AuthModal } from './components/auth/AuthModal'
 import { LoginPage } from './components/auth/LoginPage'
 import { SignupPage } from './components/auth/SignupPage'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
+import { IncomingCallModal } from './components/calls/IncomingCallModal'
+import { CallModal } from './components/calls/CallModal'
+import { callService } from './services/callService'
 import { notificationService } from './services/notificationService'
 import { messageService } from './services/messageService'
 import { postService } from './services/postService'
 import { profileService } from './services/profileService'
-import type { Post } from './types/database.types'
+import type { Post, CallSession } from './types/database.types'
 
 type TabType =
   | 'feed'
@@ -110,6 +113,24 @@ const VibeSocialApp: React.FC = () => {
     return () => window.removeEventListener('open-create-story', handleOpenStory)
   }, [])
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [incomingCall, setIncomingCall] = useState<CallSession | null>(null)
+  const [activeAttendeeCall, setActiveAttendeeCall] = useState<CallSession | null>(null)
+
+  // Real-time Instagram In-App Incoming Call Listener
+  useEffect(() => {
+    if (!user?.id) {
+      setIncomingCall(null)
+      return
+    }
+
+    const unsubscribe = callService.listenForIncomingCalls(user.id, (call) => {
+      setIncomingCall(call)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [user?.id])
   const [showGlobalReport, setShowGlobalReport] = useState(false)
   const [selectedDetailPost, setSelectedDetailPost] = useState<Post | null>(null)
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0)
@@ -597,6 +618,29 @@ const VibeSocialApp: React.FC = () => {
           setShowAuthModal(false)
         }}
       />
+
+      {/* Real-time Instagram Incoming Call Overlay */}
+      {incomingCall && (
+        <IncomingCallModal
+          call={incomingCall}
+          onAccept={(acceptedCall) => {
+            setIncomingCall(null)
+            setActiveAttendeeCall(acceptedCall)
+          }}
+          onDecline={() => {
+            setIncomingCall(null)
+          }}
+        />
+      )}
+
+      {/* Active Call Modal for Receiver when Attendee accepts */}
+      {activeAttendeeCall && (
+        <CallModal
+          isOpen={Boolean(activeAttendeeCall)}
+          onClose={() => setActiveAttendeeCall(null)}
+          existingCallSession={activeAttendeeCall}
+        />
+      )}
     </div>
   )
 }

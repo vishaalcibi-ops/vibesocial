@@ -514,8 +514,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             setCallModalMode('voice')
             setShowCallModal(true)
           }}
-          title="Voice Call / Real Phone Dial"
-          aria-label="Call user"
+          title="Audio Call"
+          aria-label="Audio call user"
           style={{ color: '#10b981' }}
         >
           <Phone size={15} />

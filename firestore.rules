@@ -299,6 +299,15 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() &&
         resource.data.userId == request.auth.uid;
     }
+
+    // =========================================================================
+    // 8. CALLS (Real-time Instagram Audio & Video In-App Calling)
+    // Document path: /calls/{callId}
+    // Fields: id, caller_id, receiver_id, status, type, ...
+    // =========================================================================
+    match /calls/{callId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }
 

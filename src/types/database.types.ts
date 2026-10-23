@@ -256,3 +256,20 @@ export interface Hashtag {
   created_at: string
   post_count?: number
 }
+
+export interface CallSession {
+  id: string
+  caller_id: string
+  caller_name: string
+  caller_username: string
+  caller_avatar_url: string | null
+  receiver_id: string
+  receiver_name: string
+  receiver_username: string
+  receiver_avatar_url: string | null
+  type: 'voice' | 'video'
+  status: 'dialing' | 'ringing' | 'accepted' | 'declined' | 'ended' | 'missed'
+  created_at: string
+  answered_at?: string | null
+  ended_at?: string | null
+}

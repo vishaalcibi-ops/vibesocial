@@ -554,8 +554,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     setActiveCallTarget(otherMember)
                     setActiveCallMode('voice')
                   }}
-                  title="Voice Call / Real Phone Dial"
-                  aria-label="Voice Call"
+                  title="Audio Call"
+                  aria-label="Audio Call"
                   style={{
                     background: 'rgba(16, 185, 129, 0.14)',
                     border: '1px solid rgba(16, 185, 129, 0.35)',
