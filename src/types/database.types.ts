@@ -272,4 +272,5 @@ export interface CallSession {
   created_at: string
   answered_at?: string | null
   ended_at?: string | null
+  conversation_id?: string | null
 }

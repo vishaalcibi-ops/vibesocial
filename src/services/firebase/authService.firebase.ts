@@ -335,6 +335,24 @@ export const authServiceFirebase = {
     }
 
     if (isFirebaseConfigured()) {
+      const virtualEmail = `${digitsOnly}@phone.vibesocial.app`
+      const virtualPassword = `VibeSocial_Phone_${digitsOnly}!`
+      try {
+        await signInWithEmailAndPassword(auth, virtualEmail, virtualPassword)
+      } catch (authErr: any) {
+        if (
+          authErr?.code === 'auth/user-not-found' ||
+          authErr?.code === 'auth/invalid-credential' ||
+          authErr?.code === 'auth/invalid-login-credentials'
+        ) {
+          try {
+            await createUserWithEmailAndPassword(auth, virtualEmail, virtualPassword)
+          } catch (createErr) {
+            console.warn('Firebase virtual phone user creation notice:', createErr)
+          }
+        }
+      }
+
       try {
         const userDocRef = doc(db, 'users', userId)
         const snap = await getDoc(userDocRef)
@@ -420,6 +438,12 @@ export const authServiceFirebase = {
         if (localSess) {
           const parsed = JSON.parse(localSess)
           if (parsed && parsed.user?.id) {
+            if (parsed.user.phone && isFirebaseConfigured() && !auth.currentUser) {
+              const digits = parsed.user.phone.replace(/[^0-9]/g, '')
+              const vEmail = `${digits}@phone.vibesocial.app`
+              const vPass = `VibeSocial_Phone_${digits}!`
+              signInWithEmailAndPassword(auth, vEmail, vPass).catch(() => {})
+            }
             return parsed
           }
         }

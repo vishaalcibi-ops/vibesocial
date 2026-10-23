@@ -30,7 +30,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   existingCallSession = null,
   initialMode = 'voice',
 }) => {
-  const { user: currentAuthUser } = useAuth()
+  const { user: currentAuthUser, profile: currentAuthProfile } = useAuth()
   const isIncomingAttendee = Boolean(existingCallSession)
 
   const [mode, setMode] = useState<'voice' | 'video'>(
@@ -194,9 +194,9 @@ export const CallModal: React.FC<CallModalProps> = ({
       setCallDuration(0)
       startOutgoingTone()
 
-      const currentProfile: Profile = {
+      const currentProfile: Profile = currentAuthProfile || {
         id: currentAuthUser.id,
-        username: currentAuthUser.user_metadata?.username || 'me',
+        username: currentAuthUser.user_metadata?.username || 'user',
         full_name: currentAuthUser.user_metadata?.full_name || 'Vibe User',
         avatar_url: currentAuthUser.user_metadata?.avatar_url || null,
         bio: '',

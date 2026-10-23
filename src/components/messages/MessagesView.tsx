@@ -619,6 +619,49 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               ) : (
                 messages.map((msg) => {
                   const isMine = msg.sender_id === user?.id
+                  if (msg.text_content && msg.text_content.startsWith('[VIBE_CALL:')) {
+                    const parts = msg.text_content.replace(/^\[VIBE_CALL:|\]$/g, '').split(':')
+                    const callType = parts[0] || 'voice'
+                    const callStatus = parts[2] || 'ended'
+                    return (
+                      <div
+                        key={msg.id}
+                        style={{
+                          margin: '8px auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          color: '#cbd5e1',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          backdropFilter: 'blur(8px)',
+                        }}
+                      >
+                        {callType === 'video' ? (
+                          <Video size={14} style={{ color: '#38bdf8' }} />
+                        ) : (
+                          <Phone size={14} style={{ color: '#10b981' }} />
+                        )}
+                        <span>
+                          {callStatus === 'ringing' && `${callType === 'video' ? 'Video' : 'Audio'} call started`}
+                          {callStatus === 'accepted' && `${callType === 'video' ? 'Video' : 'Audio'} call connected`}
+                          {callStatus === 'declined' && `Declined ${callType} call`}
+                          {callStatus === 'ended' && `${callType === 'video' ? 'Video' : 'Audio'} call ended`}
+                        </span>
+                        <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '4px' }}>
+                          {new Date(msg.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    )
+                  }
+
                   return (
                     <div
                       key={msg.id}

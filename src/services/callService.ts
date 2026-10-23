@@ -2,12 +2,12 @@ import {
   collection,
   doc,
   setDoc,
-  updateDoc,
+  deleteDoc,
   query,
   where,
   onSnapshot,
 } from 'firebase/firestore'
-import { db, isFirebaseConfigured } from './firebase/firebaseConfig'
+import { db, auth, isFirebaseConfigured } from './firebase/firebaseConfig'
 import type { CallSession, Profile } from '../types/database.types'
 
 const CALL_STORAGE_KEY_PREFIX = 'vibesocial_call_'
@@ -35,6 +35,15 @@ const safeStorage = {
       }
     } catch {}
   },
+  removeItem: (key: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key)
+      } else if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+        (globalThis as any).localStorage.removeItem(key)
+      }
+    } catch {}
+  },
 }
 
 let broadcastChannel: BroadcastChannel | null = null
@@ -47,6 +56,11 @@ try {
 }
 
 export const callService = {
+  getStableConversationId(userId1: string, userId2: string): string {
+    const sorted = [userId1, userId2].sort()
+    return `dm_${sorted[0]}_${sorted[1]}`
+  },
+
   /**
    * Start an in-app voice or video call to another user
    */
@@ -63,6 +77,7 @@ export const callService = {
       throw new Error('Both caller and receiver are required to initiate a call.')
     }
 
+    const conversationId = this.getStableConversationId(caller.id, receiver.id)
     const callId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
     const newCall: CallSession = {
       id: callId,
@@ -79,6 +94,7 @@ export const callService = {
       created_at: new Date().toISOString(),
       answered_at: null,
       ended_at: null,
+      conversation_id: conversationId,
     }
 
     // 1. Save locally for instant tab/window/fallback sync
@@ -95,14 +111,54 @@ export const callService = {
       broadcastChannel?.postMessage({ type: 'CALL_INITIATED', call: newCall })
     } catch {}
 
-    // 2. Persist to Firestore if configured
+    // 2. Real-Time Conversation Sync (Guaranteed permissions in Firestore)
     if (isFirebaseConfigured() && db) {
+      const actorId = auth.currentUser?.uid || caller.id
+      const timestamp = new Date().toISOString()
+
+      // Primary Channel: Set activeCall on direct conversation
       try {
-        const callRef = doc(db, 'calls', callId)
-        await setDoc(callRef, newCall)
-      } catch (err) {
-        console.warn('Firestore call save fallback to local:', err)
+        const convRef = doc(db, 'conversations', conversationId)
+        await setDoc(
+          convRef,
+          {
+            memberIds: [caller.id, receiver.id],
+            is_group: false,
+            activeCall: newCall,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        )
+
+        // Send call message in conversation thread
+        const msgsRef = collection(db, 'conversations', conversationId, 'messages')
+        await setDoc(doc(msgsRef), {
+          conversationId,
+          senderId: actorId,
+          textContent: `[VIBE_CALL:${type}:${callId}:ringing]`,
+          mediaUrl: null,
+          mediaType: null,
+          is_read: false,
+          createdAt: timestamp,
+        })
+      } catch (convErr) {
+        console.warn('Conversation calling channel notice:', convErr)
       }
+
+      // Secondary Channel: Notifications subcollection
+      try {
+        const notifRef = doc(db, 'users', receiver.id, 'notifications', `incoming_call_${callId}`)
+        await setDoc(notifRef, {
+          id: `incoming_call_${callId}`,
+          recipient_id: receiver.id,
+          actor_id: actorId,
+          type: 'call_incoming',
+          resource_id: JSON.stringify(newCall),
+          resource_type: type,
+          is_read: false,
+          created_at: timestamp,
+        })
+      } catch {}
     }
 
     return newCall
@@ -119,17 +175,24 @@ export const callService = {
 
     let isDisposed = false
     let unsubs: (() => void)[] = []
+    const receivedCallIds = new Set<string>()
 
-    // 1. BroadcastChannel listener
+    const handleIncomingCall = (call: CallSession) => {
+      if (isDisposed || !call?.id) return
+      if (call.status !== 'ringing') return
+      if (call.receiver_id !== currentUserId) return
+      if (receivedCallIds.has(call.id)) return
+
+      receivedCallIds.add(call.id)
+      onIncoming(call)
+    }
+
+    // 1. BroadcastChannel listener (Instant local/browser tabs)
     const handleBroadcast = (event: MessageEvent) => {
       if (isDisposed) return
       const data = event.data
-      if (
-        data?.type === 'CALL_INITIATED' &&
-        data.call?.receiver_id === currentUserId &&
-        data.call?.status === 'ringing'
-      ) {
-        onIncoming(data.call)
+      if (data?.type === 'CALL_INITIATED' && data.call) {
+        handleIncomingCall(data.call)
       }
     }
 
@@ -138,18 +201,14 @@ export const callService = {
       unsubs.push(() => broadcastChannel?.removeEventListener('message', handleBroadcast))
     }
 
-    // 2. Storage event listener (multi-tab support)
+    // 2. Storage event listener (multi-tab / offline fallback)
     const handleStorage = (e: StorageEvent) => {
       if (isDisposed) return
       if (e.key === INCOMING_CALL_EVENT_KEY && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue)
-          if (
-            parsed.call &&
-            parsed.call.receiver_id === currentUserId &&
-            parsed.call.status === 'ringing'
-          ) {
-            onIncoming(parsed.call)
+          if (parsed.call) {
+            handleIncomingCall(parsed.call)
           }
         } catch {}
       }
@@ -160,35 +219,62 @@ export const callService = {
       unsubs.push(() => window.removeEventListener('storage', handleStorage))
     }
 
-    // 3. Firestore onSnapshot listener
+    // 3. Primary Firestore Channel: Conversations query listener
     if (isFirebaseConfigured() && db) {
       try {
-        const q = query(
-          collection(db, 'calls'),
-          where('receiver_id', '==', currentUserId),
-          where('status', '==', 'ringing')
+        const convsQuery = query(
+          collection(db, 'conversations'),
+          where('memberIds', 'array-contains', currentUserId)
         )
-        const unsubFirestore = onSnapshot(
-          q,
+        const unsubConvs = onSnapshot(
+          convsQuery,
           (snapshot) => {
             if (isDisposed) return
-            snapshot.docChanges().forEach((change) => {
-              if (change.type === 'added' || change.type === 'modified') {
-                const call = change.doc.data() as CallSession
-                if (call.status === 'ringing') {
-                  onIncoming(call)
-                }
+            snapshot.docs.forEach((docSnap) => {
+              const data = docSnap.data()
+              if (
+                data.activeCall &&
+                data.activeCall.receiver_id === currentUserId &&
+                data.activeCall.status === 'ringing'
+              ) {
+                handleIncomingCall(data.activeCall as CallSession)
               }
             })
           },
           (err) => {
-            console.warn('Firestore listenForIncomingCalls notice:', err)
+            console.warn('Realtime conversations call listener notice:', err)
           }
         )
-        unsubs.push(unsubFirestore)
+        unsubs.push(unsubConvs)
       } catch (err) {
-        console.warn('Failed to subscribe firestore incoming calls:', err)
+        console.warn('Failed to subscribe firestore conversations call:', err)
       }
+
+      // 4. Secondary Firestore Channel: Notifications subcollection listener
+      try {
+        const notifsRef = collection(db, 'users', currentUserId, 'notifications')
+        const unsubNotifs = onSnapshot(
+          notifsRef,
+          (snap) => {
+            if (isDisposed) return
+            snap.docChanges().forEach((change) => {
+              if (change.type === 'added' || change.type === 'modified') {
+                const data = change.doc.data()
+                if (data.type === 'call_incoming' && data.resource_id) {
+                  try {
+                    const parsedCall = JSON.parse(data.resource_id) as CallSession
+                    if (parsedCall.status === 'ringing') {
+                      handleIncomingCall(parsedCall)
+                    }
+                  } catch {}
+                }
+              }
+            })
+          },
+          () => {}
+        )
+        unsubs.push(unsubNotifs)
+      } catch {}
     }
 
     return () => {
@@ -247,26 +333,28 @@ export const callService = {
       unsubs.push(() => window.removeEventListener('storage', handleStorage))
     }
 
-    // 3. Firestore document onSnapshot
-    if (isFirebaseConfigured() && db) {
+    // 3. Conversation listener
+    const stored = this.getStoredCall(callId)
+    if (stored?.conversation_id && isFirebaseConfigured() && db) {
       try {
-        const callRef = doc(db, 'calls', callId)
-        const unsubFirestore = onSnapshot(
-          callRef,
+        const convRef = doc(db, 'conversations', stored.conversation_id)
+        const unsubConv = onSnapshot(
+          convRef,
           (snap) => {
             if (isDisposed) return
             if (snap.exists()) {
-              notifyUpdate(snap.data() as CallSession)
+              const data = snap.data()
+              if (data.activeCall && data.activeCall.id === callId) {
+                notifyUpdate(data.activeCall as CallSession)
+              } else if (!data.activeCall && stored.status === 'accepted') {
+                notifyUpdate({ ...stored, status: 'ended' })
+              }
             }
           },
-          (err) => {
-            console.warn('Firestore call snapshot notice:', err)
-          }
+          () => {}
         )
-        unsubs.push(unsubFirestore)
-      } catch (err) {
-        console.warn('Failed to subscribe firestore call session:', err)
-      }
+        unsubs.push(unsubConv)
+      } catch {}
     }
 
     return () => {
@@ -284,19 +372,70 @@ export const callService = {
    */
   async acceptCall(callId: string): Promise<void> {
     const answeredAt = new Date().toISOString()
-    const updatePayload: Partial<CallSession> = {
+    const stored = this.getStoredCall(callId)
+    const updatedCall: CallSession = {
+      ...(stored || {
+        id: callId,
+        caller_id: '',
+        caller_name: 'Caller',
+        caller_username: 'user',
+        caller_avatar_url: null,
+        receiver_id: '',
+        receiver_name: 'Receiver',
+        receiver_username: 'user',
+        receiver_avatar_url: null,
+        type: 'voice',
+        created_at: new Date().toISOString(),
+      }),
       status: 'accepted',
       answered_at: answeredAt,
     }
 
-    this._broadcastCallUpdate(callId, updatePayload)
+    this._broadcastCallUpdate(callId, updatedCall)
 
     if (isFirebaseConfigured() && db) {
+      const actorId = auth.currentUser?.uid || updatedCall.receiver_id
+      const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
+
+      // 1. Update activeCall on direct conversation
       try {
-        const callRef = doc(db, 'calls', callId)
-        await updateDoc(callRef, updatePayload)
+        const convRef = doc(db, 'conversations', convId)
+        await setDoc(
+          convRef,
+          {
+            activeCall: updatedCall,
+            updatedAt: answeredAt,
+          },
+          { merge: true }
+        )
+
+        // Send accepted message in conversation
+        const msgsRef = collection(db, 'conversations', convId, 'messages')
+        await setDoc(doc(msgsRef), {
+          conversationId: convId,
+          senderId: actorId,
+          textContent: `[VIBE_CALL:${updatedCall.type}:${callId}:accepted]`,
+          mediaUrl: null,
+          mediaType: null,
+          is_read: false,
+          createdAt: answeredAt,
+        })
       } catch (err) {
-        console.warn('Firestore acceptCall error fallback:', err)
+        console.warn('Accept call conversation sync error:', err)
+      }
+
+      // 2. Remove incoming notification from receiver's subcollection
+      if (updatedCall.receiver_id) {
+        try {
+          const myNotifRef = doc(
+            db,
+            'users',
+            updatedCall.receiver_id,
+            'notifications',
+            `incoming_call_${callId}`
+          )
+          await deleteDoc(myNotifRef)
+        } catch {}
       }
     }
   },
@@ -306,19 +445,67 @@ export const callService = {
    */
   async declineCall(callId: string): Promise<void> {
     const endedAt = new Date().toISOString()
-    const updatePayload: Partial<CallSession> = {
+    const stored = this.getStoredCall(callId)
+    const updatedCall: CallSession = {
+      ...(stored || {
+        id: callId,
+        caller_id: '',
+        caller_name: 'Caller',
+        caller_username: 'user',
+        caller_avatar_url: null,
+        receiver_id: '',
+        receiver_name: 'Receiver',
+        receiver_username: 'user',
+        receiver_avatar_url: null,
+        type: 'voice',
+        created_at: new Date().toISOString(),
+      }),
       status: 'declined',
       ended_at: endedAt,
     }
 
-    this._broadcastCallUpdate(callId, updatePayload)
+    this._broadcastCallUpdate(callId, updatedCall)
 
     if (isFirebaseConfigured() && db) {
+      const actorId = auth.currentUser?.uid || updatedCall.receiver_id
+      const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
+
+      // 1. Update activeCall on direct conversation
       try {
-        const callRef = doc(db, 'calls', callId)
-        await updateDoc(callRef, updatePayload)
-      } catch (err) {
-        console.warn('Firestore declineCall error fallback:', err)
+        const convRef = doc(db, 'conversations', convId)
+        await setDoc(
+          convRef,
+          {
+            activeCall: updatedCall,
+            updatedAt: endedAt,
+          },
+          { merge: true }
+        )
+
+        const msgsRef = collection(db, 'conversations', convId, 'messages')
+        await setDoc(doc(msgsRef), {
+          conversationId: convId,
+          senderId: actorId,
+          textContent: `[VIBE_CALL:${updatedCall.type}:${callId}:declined]`,
+          mediaUrl: null,
+          mediaType: null,
+          is_read: false,
+          createdAt: endedAt,
+        })
+      } catch {}
+
+      // 2. Remove incoming notification from receiver's subcollection
+      if (updatedCall.receiver_id) {
+        try {
+          const myNotifRef = doc(
+            db,
+            'users',
+            updatedCall.receiver_id,
+            'notifications',
+            `incoming_call_${callId}`
+          )
+          await deleteDoc(myNotifRef)
+        } catch {}
       }
     }
   },
@@ -328,49 +515,74 @@ export const callService = {
    */
   async endCall(callId: string): Promise<void> {
     const endedAt = new Date().toISOString()
-    const updatePayload: Partial<CallSession> = {
+    const stored = this.getStoredCall(callId)
+    const updatedCall: CallSession = {
+      ...(stored || {
+        id: callId,
+        caller_id: '',
+        caller_name: 'Caller',
+        caller_username: 'user',
+        caller_avatar_url: null,
+        receiver_id: '',
+        receiver_name: 'Receiver',
+        receiver_username: 'user',
+        receiver_avatar_url: null,
+        type: 'voice',
+        created_at: new Date().toISOString(),
+      }),
       status: 'ended',
       ended_at: endedAt,
     }
 
-    this._broadcastCallUpdate(callId, updatePayload)
+    this._broadcastCallUpdate(callId, updatedCall)
 
     if (isFirebaseConfigured() && db) {
+      const actorId = auth.currentUser?.uid || updatedCall.caller_id || updatedCall.receiver_id
+      const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
+
       try {
-        const callRef = doc(db, 'calls', callId)
-        await updateDoc(callRef, updatePayload)
-      } catch (err) {
-        console.warn('Firestore endCall error fallback:', err)
-      }
+        const convRef = doc(db, 'conversations', convId)
+        await setDoc(
+          convRef,
+          {
+            activeCall: null,
+            updatedAt: endedAt,
+          },
+          { merge: true }
+        )
+
+        const msgsRef = collection(db, 'conversations', convId, 'messages')
+        await setDoc(doc(msgsRef), {
+          conversationId: convId,
+          senderId: actorId,
+          textContent: `[VIBE_CALL:${updatedCall.type}:${callId}:ended]`,
+          mediaUrl: null,
+          mediaType: null,
+          is_read: false,
+          createdAt: endedAt,
+        })
+      } catch {}
     }
+  },
+
+  /**
+   * Retrieve cached call from safeStorage
+   */
+  getStoredCall(callId: string): CallSession | null {
+    try {
+      const stored = safeStorage.getItem(`${CALL_STORAGE_KEY_PREFIX}${callId}`)
+      if (stored) {
+        return JSON.parse(stored) as CallSession
+      }
+    } catch {}
+    return null
   },
 
   /**
    * Internal helper to update local and broadcast state
    */
-  _broadcastCallUpdate(callId: string, partial: Partial<CallSession>) {
+  _broadcastCallUpdate(callId: string, fullCall: CallSession) {
     try {
-      const stored = safeStorage.getItem(`${CALL_STORAGE_KEY_PREFIX}${callId}`)
-      let fullCall: CallSession
-      if (stored) {
-        fullCall = { ...JSON.parse(stored), ...partial }
-      } else {
-        fullCall = {
-          id: callId,
-          caller_id: '',
-          caller_name: '',
-          caller_username: '',
-          caller_avatar_url: null,
-          receiver_id: '',
-          receiver_name: '',
-          receiver_username: '',
-          receiver_avatar_url: null,
-          type: 'voice',
-          status: 'ended',
-          created_at: new Date().toISOString(),
-          ...partial,
-        } as CallSession
-      }
       safeStorage.setItem(`${CALL_STORAGE_KEY_PREFIX}${callId}`, JSON.stringify(fullCall))
       safeStorage.setItem(
         CALL_UPDATE_EVENT_KEY,
