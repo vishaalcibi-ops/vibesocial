@@ -6,6 +6,7 @@ import {
   query,
   where,
   onSnapshot,
+  arrayUnion,
 } from 'firebase/firestore'
 import { db, auth, isFirebaseConfigured } from './firebase/firebaseConfig'
 import type { CallSession, Profile } from '../types/database.types'
@@ -290,7 +291,11 @@ export const callService = {
   /**
    * Listen for updates on a specific active call (Status changes: accepted, declined, ended)
    */
-  listenToCall(callId: string, onUpdate: (call: CallSession) => void): () => void {
+  listenToCall(
+    callId: string,
+    onUpdate: (call: CallSession) => void,
+    conversationId?: string
+  ): () => void {
     if (!callId) return () => {}
 
     let isDisposed = false
@@ -335,9 +340,10 @@ export const callService = {
 
     // 3. Conversation listener
     const stored = this.getStoredCall(callId)
-    if (stored?.conversation_id && isFirebaseConfigured() && db) {
+    const convId = conversationId || stored?.conversation_id
+    if (convId && isFirebaseConfigured() && db) {
       try {
-        const convRef = doc(db, 'conversations', stored.conversation_id)
+        const convRef = doc(db, 'conversations', convId)
         const unsubConv = onSnapshot(
           convRef,
           (snap) => {
@@ -346,12 +352,14 @@ export const callService = {
               const data = snap.data()
               if (data.activeCall && data.activeCall.id === callId) {
                 notifyUpdate(data.activeCall as CallSession)
-              } else if (!data.activeCall && stored.status === 'accepted') {
-                notifyUpdate({ ...stored, status: 'ended' })
+              } else if (!data.activeCall && (stored?.status === 'accepted' || data.updatedAt)) {
+                notifyUpdate({ ...(stored || {} as any), id: callId, status: 'ended' })
               }
             }
           },
-          () => {}
+          (err) => {
+            console.warn('listenToCall snapshot error:', err)
+          }
         )
         unsubs.push(unsubConv)
       } catch {}
@@ -370,9 +378,9 @@ export const callService = {
   /**
    * Receiver accepts the incoming call
    */
-  async acceptCall(callId: string): Promise<void> {
+  async acceptCall(callId: string, session?: CallSession): Promise<void> {
     const answeredAt = new Date().toISOString()
-    const stored = this.getStoredCall(callId)
+    const stored = session || this.getStoredCall(callId)
     const updatedCall: CallSession = {
       ...(stored || {
         id: callId,
@@ -443,9 +451,9 @@ export const callService = {
   /**
    * Receiver declines the incoming call
    */
-  async declineCall(callId: string): Promise<void> {
+  async declineCall(callId: string, session?: CallSession): Promise<void> {
     const endedAt = new Date().toISOString()
-    const stored = this.getStoredCall(callId)
+    const stored = session || this.getStoredCall(callId)
     const updatedCall: CallSession = {
       ...(stored || {
         id: callId,
@@ -470,7 +478,6 @@ export const callService = {
       const actorId = auth.currentUser?.uid || updatedCall.receiver_id
       const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
 
-      // 1. Update activeCall on direct conversation
       try {
         const convRef = doc(db, 'conversations', convId)
         await setDoc(
@@ -494,7 +501,6 @@ export const callService = {
         })
       } catch {}
 
-      // 2. Remove incoming notification from receiver's subcollection
       if (updatedCall.receiver_id) {
         try {
           const myNotifRef = doc(
@@ -513,9 +519,9 @@ export const callService = {
   /**
    * End the call from either caller or receiver
    */
-  async endCall(callId: string): Promise<void> {
+  async endCall(callId: string, session?: CallSession): Promise<void> {
     const endedAt = new Date().toISOString()
-    const stored = this.getStoredCall(callId)
+    const stored = session || this.getStoredCall(callId)
     const updatedCall: CallSession = {
       ...(stored || {
         id: callId,
@@ -546,6 +552,10 @@ export const callService = {
           convRef,
           {
             activeCall: null,
+            webrtcOffer: null,
+            webrtcAnswer: null,
+            callerCandidates: null,
+            receiverCandidates: null,
             updatedAt: endedAt,
           },
           { merge: true }
@@ -563,6 +573,78 @@ export const callService = {
         })
       } catch {}
     }
+  },
+
+  /**
+   * Send WebRTC SDP Offer
+   */
+  async sendWebRtcOffer(conversationId: string, offer: any) {
+    if (!conversationId || !isFirebaseConfigured() || !db) return
+    try {
+      const convRef = doc(db, 'conversations', conversationId)
+      await setDoc(
+        convRef,
+        {
+          webrtcOffer: offer,
+          callerCandidates: [],
+          receiverCandidates: [],
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      )
+    } catch {}
+  },
+
+  /**
+   * Send WebRTC SDP Answer
+   */
+  async sendWebRtcAnswer(conversationId: string, answer: any) {
+    if (!conversationId || !isFirebaseConfigured() || !db) return
+    try {
+      const convRef = doc(db, 'conversations', conversationId)
+      await setDoc(
+        convRef,
+        {
+          webrtcAnswer: answer,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      )
+    } catch {}
+  },
+
+  /**
+   * Send ICE Candidate
+   */
+  async sendIceCandidate(conversationId: string, role: 'caller' | 'receiver', candidate: any) {
+    if (!conversationId || !isFirebaseConfigured() || !db) return
+    try {
+      const convRef = doc(db, 'conversations', conversationId)
+      const field = role === 'caller' ? 'callerCandidates' : 'receiverCandidates'
+      const candJson = JSON.stringify(candidate)
+      await setDoc(
+        convRef,
+        {
+          [field]: arrayUnion(candJson),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      )
+    } catch {}
+  },
+
+  /**
+   * Subscribe to WebRTC conversation signals
+   */
+  subscribeWebRtcSignals(conversationId: string, onSignal: (data: any) => void): () => void {
+    if (!conversationId || !isFirebaseConfigured() || !db) return () => {}
+    const convRef = doc(db, 'conversations', conversationId)
+    const unsub = onSnapshot(convRef, (snap) => {
+      if (snap.exists()) {
+        onSignal(snap.data())
+      }
+    })
+    return unsub
   },
 
   /**

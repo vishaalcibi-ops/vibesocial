@@ -23,6 +23,14 @@ interface CallModalProps {
   initialMode?: 'voice' | 'video'
 }
 
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ],
+}
+
 export const CallModal: React.FC<CallModalProps> = ({
   isOpen,
   onClose,
@@ -49,15 +57,19 @@ export const CallModal: React.FC<CallModalProps> = ({
   )
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
+  const [hasRemoteStream, setHasRemoteStream] = useState(false)
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
+
   const localStreamRef = useRef<MediaStream | null>(null)
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
   const timerIntervalRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
-  const ringtoneOscRef = useRef<OscillatorNode | null>(null)
   const ringIntervalRef = useRef<number | null>(null)
 
-  // Resolve display user info
+  // Display user info
   const displayUser = isIncomingAttendee
     ? {
         id: existingCallSession?.caller_id,
@@ -78,6 +90,13 @@ export const CallModal: React.FC<CallModalProps> = ({
       setIsVideoEnabled(initialMode === 'video')
     }
   }, [existingCallSession, initialMode])
+
+  // Speaker toggle effect
+  useEffect(() => {
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.25
+    }
+  }, [isSpeakerOn])
 
   // Outgoing dial/ring tone synthesis
   const startOutgoingTone = () => {
@@ -114,13 +133,6 @@ export const CallModal: React.FC<CallModalProps> = ({
       clearInterval(ringIntervalRef.current)
       ringIntervalRef.current = null
     }
-    if (ringtoneOscRef.current) {
-      try {
-        ringtoneOscRef.current.stop()
-        ringtoneOscRef.current.disconnect()
-      } catch {}
-      ringtoneOscRef.current = null
-    }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       try {
         audioContextRef.current.close().catch(() => {})
@@ -129,32 +141,45 @@ export const CallModal: React.FC<CallModalProps> = ({
     }
   }
 
-  // Camera stream management
-  const startCamera = async (facing: 'user' | 'environment') => {
+  // Local media stream setup (both microphone & camera when video)
+  const setupLocalMedia = async (
+    callType: 'voice' | 'video',
+    facing: 'user' | 'environment'
+  ): Promise<MediaStream | null> => {
     try {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop())
       }
       if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facing },
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: callType === 'video' ? { facingMode: facing } : false,
         })
         localStreamRef.current = stream
-        if (localVideoRef.current) {
+        if (localVideoRef.current && callType === 'video') {
           localVideoRef.current.srcObject = stream
         }
+        return stream
       }
     } catch (err) {
-      console.warn('Camera/Mic permission warning:', err)
+      console.warn('Local media access warning:', err)
     }
+    return null
   }
 
-  // Call lifecycle
+  // Main Call Lifecycle & WebRTC Connection
   useEffect(() => {
     if (!isOpen) {
       stopOutgoingTone()
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current)
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
+      }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop())
         localStreamRef.current = null
@@ -164,20 +189,166 @@ export const CallModal: React.FC<CallModalProps> = ({
 
     let isDisposed = false
     let unsubscribeCallListener: (() => void) | null = null
+    let unsubscribeSignalListener: (() => void) | null = null
+    const processedCandidates = new Set<string>()
+    const pendingCandidates: any[] = []
+
+    const startTimer = () => {
+      if (!timerIntervalRef.current) {
+        timerIntervalRef.current = window.setInterval(() => {
+          setCallDuration((prev) => prev + 1)
+        }, 1000)
+      }
+    }
+
+    const initWebRTC = async (convId: string, isInitiator: boolean) => {
+      try {
+        const pc = new RTCPeerConnection(RTC_CONFIG)
+        peerConnectionRef.current = pc
+
+        // Attach local tracks
+        const stream = await setupLocalMedia(mode, facingMode)
+        if (stream && !isDisposed) {
+          stream.getTracks().forEach((track) => {
+            pc.addTrack(track, stream)
+          })
+        }
+
+        // On Remote Stream
+        pc.ontrack = (event) => {
+          if (isDisposed) return
+          const [remoteStream] = event.streams
+          if (remoteStream) {
+            setHasRemoteStream(true)
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream
+            }
+            if (remoteAudioRef.current) {
+              remoteAudioRef.current.srcObject = remoteStream
+              remoteAudioRef.current.play().catch(() => {})
+            }
+          }
+        }
+
+        // Send ICE candidate to peer
+        pc.onicecandidate = (event) => {
+          if (event.candidate && convId) {
+            callService.sendIceCandidate(
+              convId,
+              isInitiator ? 'caller' : 'receiver',
+              event.candidate.toJSON()
+            )
+          }
+        }
+
+        let hasAnswered = false
+
+        // Listen for WebRTC signals (Offers, Answers, ICE Candidates)
+        unsubscribeSignalListener = callService.subscribeWebRtcSignals(
+          convId,
+          async (signals) => {
+            if (isDisposed || !pc || pc.signalingState === 'closed') return
+
+            // RECEIVER FLOW: Receive offer, create answer
+            if (!isInitiator && signals.webrtcOffer && !hasAnswered) {
+              hasAnswered = true
+              try {
+                await pc.setRemoteDescription(new RTCSessionDescription(signals.webrtcOffer))
+                // Flush queued candidates
+                for (const c of pendingCandidates) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(c))
+                  } catch {}
+                }
+                pendingCandidates.length = 0
+
+                const answer = await pc.createAnswer()
+                await pc.setLocalDescription(answer)
+                await callService.sendWebRtcAnswer(convId, {
+                  type: answer.type,
+                  sdp: answer.sdp,
+                })
+              } catch (err) {
+                console.warn('Error handling WebRTC offer:', err)
+              }
+            }
+
+            // CALLER FLOW: Receive answer
+            if (isInitiator && signals.webrtcAnswer && !pc.currentRemoteDescription) {
+              try {
+                await pc.setRemoteDescription(new RTCSessionDescription(signals.webrtcAnswer))
+                // Flush queued candidates
+                for (const c of pendingCandidates) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(c))
+                  } catch {}
+                }
+                pendingCandidates.length = 0
+              } catch (err) {
+                console.warn('Error handling WebRTC answer:', err)
+              }
+            }
+
+            // Handle peer ICE candidates
+            const targetCandidates = isInitiator
+              ? signals.receiverCandidates
+              : signals.callerCandidates
+
+            if (targetCandidates) {
+              const list = Array.isArray(targetCandidates)
+                ? targetCandidates
+                : [targetCandidates]
+
+              for (const candItem of list) {
+                if (!candItem) continue
+                const key = typeof candItem === 'string' ? candItem : JSON.stringify(candItem)
+                if (processedCandidates.has(key)) continue
+                processedCandidates.add(key)
+
+                try {
+                  const parsed = typeof candItem === 'string' ? JSON.parse(candItem) : candItem
+                  if (pc.remoteDescription && pc.remoteDescription.type) {
+                    await pc.addIceCandidate(new RTCIceCandidate(parsed))
+                  } else {
+                    pendingCandidates.push(parsed)
+                  }
+                } catch {}
+              }
+            }
+          }
+        )
+
+        // CALLER FLOW: Create and send WebRTC offer
+        if (isInitiator) {
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: mode === 'video',
+          })
+          await pc.setLocalDescription(offer)
+          await callService.sendWebRtcOffer(convId, {
+            type: offer.type,
+            sdp: offer.sdp,
+          })
+        }
+      } catch (err) {
+        console.warn('WebRTC initialization error:', err)
+      }
+    }
 
     if (isIncomingAttendee && existingCallSession) {
-      // Receiver is attending the call
+      // RECEIVER SIDE
       setCallStatus('connected')
       setCallDuration(0)
-      timerIntervalRef.current = window.setInterval(() => {
-        setCallDuration((prev) => prev + 1)
-      }, 1000)
+      startTimer()
 
-      if (existingCallSession.type === 'video') {
-        startCamera(facingMode)
-      }
+      const convId =
+        existingCallSession.conversation_id ||
+        [existingCallSession.caller_id, existingCallSession.receiver_id].sort().join('_')
 
-      // Listen for when caller ends call
+      // Start WebRTC as receiver
+      initWebRTC(convId, false)
+
+      // Listen for caller ending call
       unsubscribeCallListener = callService.listenToCall(
         existingCallSession.id,
         (updated) => {
@@ -186,10 +357,11 @@ export const CallModal: React.FC<CallModalProps> = ({
             setCallStatus('ended')
             setTimeout(() => onClose(), 1200)
           }
-        }
+        },
+        convId
       )
     } else if (targetUser && currentAuthUser) {
-      // Outgoing Caller: Initiate call to target user
+      // CALLER SIDE
       setCallStatus('dialing')
       setCallDuration(0)
       startOutgoingTone()
@@ -215,9 +387,13 @@ export const CallModal: React.FC<CallModalProps> = ({
         .then((session) => {
           if (isDisposed) return
           setActiveCallId(session.id)
+          const convId = session.conversation_id || [session.caller_id, session.receiver_id].sort().join('_')
           setCallStatus('ringing')
 
-          // Real-time listener for receiver answering or declining!
+          // Start WebRTC as caller
+          initWebRTC(convId, true)
+
+          // Real-time listener for receiver attending or declining
           unsubscribeCallListener = callService.listenToCall(
             session.id,
             (updated) => {
@@ -225,11 +401,7 @@ export const CallModal: React.FC<CallModalProps> = ({
               if (updated.status === 'accepted') {
                 stopOutgoingTone()
                 setCallStatus('connected')
-                if (!timerIntervalRef.current) {
-                  timerIntervalRef.current = window.setInterval(() => {
-                    setCallDuration((prev) => prev + 1)
-                  }, 1000)
-                }
+                startTimer()
               } else if (updated.status === 'declined') {
                 stopOutgoingTone()
                 setCallStatus('declined')
@@ -239,26 +411,28 @@ export const CallModal: React.FC<CallModalProps> = ({
                 setCallStatus('ended')
                 setTimeout(() => onClose(), 1200)
               }
-            }
+            },
+            convId
           )
         })
         .catch((err) => {
           console.warn('Call initiate error:', err)
           setCallStatus('ringing')
         })
-
-      if (mode === 'video') {
-        startCamera(facingMode)
-      }
     }
 
     return () => {
       isDisposed = true
       stopOutgoingTone()
       if (unsubscribeCallListener) unsubscribeCallListener()
+      if (unsubscribeSignalListener) unsubscribeSignalListener()
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
         timerIntervalRef.current = null
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
       }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop())
@@ -280,11 +454,16 @@ export const CallModal: React.FC<CallModalProps> = ({
     setCallStatus('ended')
     if (activeCallId) {
       try {
-        await callService.endCall(activeCallId)
+        await callService.endCall(activeCallId, existingCallSession || undefined)
       } catch {}
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close()
+      peerConnectionRef.current = null
     }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop())
+      localStreamRef.current = null
     }
     setTimeout(() => {
       onClose()
@@ -315,11 +494,20 @@ export const CallModal: React.FC<CallModalProps> = ({
     })
   }
 
-  const handleFlipCamera = () => {
+  const handleFlipCamera = async () => {
     const nextFacing = facingMode === 'user' ? 'environment' : 'user'
     setFacingMode(nextFacing)
     if (mode === 'video') {
-      startCamera(nextFacing)
+      const newStream = await setupLocalMedia('video', nextFacing)
+      if (newStream && peerConnectionRef.current) {
+        const newVideoTrack = newStream.getVideoTracks()[0]
+        const sender = peerConnectionRef.current
+          .getSenders()
+          .find((s) => s.track?.kind === 'video')
+        if (sender && newVideoTrack) {
+          sender.replaceTrack(newVideoTrack)
+        }
+      }
     }
   }
 
@@ -337,6 +525,9 @@ export const CallModal: React.FC<CallModalProps> = ({
         animation: 'fadeIn 0.2s ease-out',
       }}
     >
+      {/* Remote Audio Track Player (Guarantee remote voice streaming) */}
+      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
       <div
         className="call-card"
         onClick={(e) => e.stopPropagation()}
@@ -401,7 +592,11 @@ export const CallModal: React.FC<CallModalProps> = ({
               border: '1px solid rgba(255, 255, 255, 0.06)',
             }}
           >
-            {mode === 'video' ? <Video size={13} style={{ color: '#38bdf8' }} /> : <Phone size={13} style={{ color: '#4ade80' }} />}
+            {mode === 'video' ? (
+              <Video size={13} style={{ color: '#38bdf8' }} />
+            ) : (
+              <Phone size={13} style={{ color: '#4ade80' }} />
+            )}
             <span style={{ fontWeight: 600 }}>
               {mode === 'video' ? 'Instagram Video' : 'Instagram Audio'}
             </span>
@@ -447,82 +642,134 @@ export const CallModal: React.FC<CallModalProps> = ({
               justifyContent: 'center',
             }}
           >
-            {/* Main Remote User Simulated Stream / Waiting Card */}
-            <div
+            {/* Real Fullscreen Remote Video Track */}
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
               style={{
+                position: 'absolute',
+                inset: 0,
                 width: '100%',
                 height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(135deg, #161824 0%, #0d0e17 100%)',
-                padding: '20px',
-                textAlign: 'center',
+                objectFit: 'cover',
+                display: hasRemoteStream && callStatus === 'connected' ? 'block' : 'none',
+                zIndex: 1,
               }}
-            >
+            />
+
+            {/* Waiting / Connecting / Avatar fallback */}
+            {(!hasRemoteStream || callStatus !== 'connected') && (
               <div
                 style={{
-                  position: 'relative',
-                  width: '96px',
-                  height: '96px',
-                  borderRadius: '50%',
-                  padding: '3px',
-                  background: 'linear-gradient(45deg, #f09433, #dc2743, #bc1888)',
-                  marginBottom: '16px',
-                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'linear-gradient(135deg, #161824 0%, #0d0e17 100%)',
+                  padding: '20px',
+                  textAlign: 'center',
+                  zIndex: 2,
                 }}
               >
-                <img
-                  src={
-                    displayUser?.avatar_url ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.full_name || 'User')}&background=4f46e5&color=fff&size=200`
-                  }
-                  alt={displayUser?.full_name || 'User'}
+                <div
                   style={{
-                    width: '100%',
-                    height: '100%',
+                    position: 'relative',
+                    width: '96px',
+                    height: '96px',
                     borderRadius: '50%',
-                    objectFit: 'cover',
+                    padding: '3px',
+                    background: 'linear-gradient(45deg, #f09433, #dc2743, #bc1888)',
+                    marginBottom: '16px',
+                    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
+                  }}
+                >
+                  <img
+                    src={
+                      displayUser?.avatar_url ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        displayUser?.full_name || 'User'
+                      )}&background=4f46e5&color=fff&size=200`
+                    }
+                    alt={displayUser?.full_name || 'User'}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </div>
+
+                <h4 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>
+                  {displayUser?.full_name || displayUser?.username}
+                </h4>
+                <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 12px' }}>
+                  @{displayUser?.username}
+                </p>
+
+                {/* Status Pill */}
+                <div
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    background:
+                      callStatus === 'connected'
+                        ? 'rgba(16, 185, 129, 0.2)'
+                        : callStatus === 'declined'
+                        ? 'rgba(239, 68, 68, 0.2)'
+                        : 'rgba(255, 255, 255, 0.1)',
+                    color:
+                      callStatus === 'connected'
+                        ? '#34d399'
+                        : callStatus === 'declined'
+                        ? '#f87171'
+                        : '#e2e8f0',
+                  }}
+                >
+                  {callStatus === 'dialing' && 'Connecting to user...'}
+                  {callStatus === 'ringing' && 'Ringing... 🔔'}
+                  {callStatus === 'connected' && `Connected • ${formatDuration(callDuration)}`}
+                  {callStatus === 'declined' && 'Call Declined'}
+                  {callStatus === 'ended' && 'Call Ended'}
+                </div>
+              </div>
+            )}
+
+            {/* Live Call Duration Pill overlay on active video */}
+            {hasRemoteStream && callStatus === 'connected' && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  left: '12px',
+                  zIndex: 15,
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '4px 10px',
+                  borderRadius: '14px',
+                  fontSize: '12px',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: '#10b981',
                   }}
                 />
+                <span>{formatDuration(callDuration)}</span>
               </div>
-
-              <h4 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>
-                {displayUser?.full_name || displayUser?.username}
-              </h4>
-              <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 12px' }}>
-                @{displayUser?.username}
-              </p>
-
-              {/* Status Pill */}
-              <div
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  background:
-                    callStatus === 'connected'
-                      ? 'rgba(16, 185, 129, 0.2)'
-                      : callStatus === 'declined'
-                      ? 'rgba(239, 68, 68, 0.2)'
-                      : 'rgba(255, 255, 255, 0.1)',
-                  color:
-                    callStatus === 'connected'
-                      ? '#34d399'
-                      : callStatus === 'declined'
-                      ? '#f87171'
-                      : '#e2e8f0',
-                }}
-              >
-                {callStatus === 'dialing' && 'Connecting to user...'}
-                {callStatus === 'ringing' && 'Ringing... 🔔'}
-                {callStatus === 'connected' && `Connected • ${formatDuration(callDuration)}`}
-                {callStatus === 'declined' && 'Call Declined'}
-                {callStatus === 'ended' && 'Call Ended'}
-              </div>
-            </div>
+            )}
 
             {/* Local Video Stream PIP Floating Thumbnail */}
             <div
@@ -627,14 +874,17 @@ export const CallModal: React.FC<CallModalProps> = ({
                   height: '120px',
                   borderRadius: '50%',
                   padding: '3px',
-                  background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)',
+                  background:
+                    'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)',
                   boxShadow: '0 12px 36px rgba(0, 0, 0, 0.6)',
                 }}
               >
                 <img
                   src={
                     displayUser?.avatar_url ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.full_name || 'User')}&background=4f46e5&color=fff&size=200`
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      displayUser?.full_name || 'User'
+                    )}&background=4f46e5&color=fff&size=200`
                   }
                   alt={displayUser?.full_name || 'User'}
                   style={{
@@ -832,7 +1082,9 @@ export const CallModal: React.FC<CallModalProps> = ({
                 width: '50px',
                 height: '50px',
                 borderRadius: '50%',
-                background: isSpeakerOn ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                background: isSpeakerOn
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'rgba(255, 255, 255, 0.05)',
                 border: 'none',
                 color: '#ffffff',
                 display: 'flex',

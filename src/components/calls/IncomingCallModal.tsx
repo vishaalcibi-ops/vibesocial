@@ -95,7 +95,7 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   const handleAccept = async () => {
     stopIncomingRingtone()
     try {
-      await callService.acceptCall(call.id)
+      await callService.acceptCall(call.id, call)
     } catch {}
     onAccept(call)
   }
@@ -103,7 +103,7 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   const handleDecline = async () => {
     stopIncomingRingtone()
     try {
-      await callService.declineCall(call.id)
+      await callService.declineCall(call.id, call)
     } catch {}
     onDecline(call)
   }

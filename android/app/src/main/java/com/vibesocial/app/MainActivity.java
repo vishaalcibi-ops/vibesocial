@@ -1,6 +1,8 @@
 package com.vibesocial.app;
 
 import android.os.Bundle;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import com.getcapacitor.BridgeActivity;
 
@@ -19,6 +21,15 @@ public class MainActivity extends BridgeActivity {
                 settings.setSupportMultipleWindows(true);
                 settings.setDomStorageEnabled(true);
                 settings.setDatabaseEnabled(true);
+                settings.setMediaPlaybackRequiresUserGesture(false);
+
+                // Grant WebRTC camera & microphone access in Android WebView
+                this.bridge.getWebView().setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onPermissionRequest(final PermissionRequest request) {
+                        runOnUiThread(() -> request.grant(request.getResources()));
+                    }
+                });
 
                 android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
                 cookieManager.setAcceptCookie(true);
@@ -29,3 +40,4 @@ public class MainActivity extends BridgeActivity {
         }
     }
 }
+
