@@ -15,6 +15,7 @@ export interface Profile {
   website: string
   is_verified: boolean
   is_private?: boolean
+  phone_number?: string
   last_seen?: string
   show_active_status?: boolean
   created_at: string

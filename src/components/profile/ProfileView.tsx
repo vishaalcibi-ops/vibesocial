@@ -18,6 +18,9 @@ import {
   Star,
   Eye,
   Plus,
+  Archive,
+  Phone,
+  Video,
 } from 'lucide-react'
 import type { Profile, Post, Reel } from '../../types/database.types'
 import { profileService } from '../../services/profileService'
@@ -33,6 +36,7 @@ import { RecentViewsModal } from './RecentViewsModal'
 import { PostDetailModal } from '../feed/PostDetailModal'
 import { StoryViewerModal } from '../feed/StoryViewerModal'
 import { ReportModal } from '../common/ReportModal'
+import { CallModal } from '../calls/CallModal'
 
 interface ProfileViewProps {
   userId: string
@@ -74,6 +78,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [activeHighlightStoryGroup, setActiveHighlightStoryGroup] = useState<any>(null)
   const [showNewHighlightPrompt, setShowNewHighlightPrompt] = useState(false)
   const [newHlTitleInput, setNewHlTitleInput] = useState('')
+  const [showCallModal, setShowCallModal] = useState(false)
+  const [callModalMode, setCallModalMode] = useState<'voice' | 'video'>('voice')
 
   const isMe = user?.id === userId
 
@@ -442,6 +448,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <span>Recent Views</span>
           </button>
 
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              window.history.pushState({}, '', '/archive')
+              window.dispatchEvent(new PopStateEvent('popstate'))
+            }}
+            title="Archive (Posts & Stories)"
+            aria-label="Archive"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontWeight: 600,
+            }}
+          >
+            <Archive size={14} />
+            <span>Archive</span>
+          </button>
+
           {onOpenSettings && (
             <button
               className="btn-secondary profile-icon-btn"
@@ -481,6 +506,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <Send size={15} />
           <span>Message</span>
         </button>
+
+        {/* Real Phone & In-App Call Buttons */}
+        <button
+          className="btn-secondary profile-icon-btn"
+          onClick={() => {
+            setCallModalMode('voice')
+            setShowCallModal(true)
+          }}
+          title="Voice Call / Real Phone Dial"
+          aria-label="Call user"
+          style={{ color: '#10b981' }}
+        >
+          <Phone size={15} />
+        </button>
+        <button
+          className="btn-secondary profile-icon-btn"
+          onClick={() => {
+            setCallModalMode('video')
+            setShowCallModal(true)
+          }}
+          title="Video Call"
+          aria-label="Video Call user"
+          style={{ color: '#ec4899' }}
+        >
+          <Video size={15} />
+        </button>
+
         <button
           className="btn-secondary profile-icon-btn"
           onClick={handleShareProfile}
@@ -1165,6 +1217,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {showCallModal && profile && (
+        <CallModal
+          isOpen={showCallModal}
+          onClose={() => setShowCallModal(false)}
+          targetUser={profile}
+          initialMode={callModalMode}
+        />
       )}
     </div>
   )

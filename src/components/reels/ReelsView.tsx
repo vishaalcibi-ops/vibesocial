@@ -195,6 +195,10 @@ export const ReelsView: React.FC<ReelsViewProps> = ({
     }
   }
 
+  const lastScrollTimeRef = useRef(0)
+  const touchStartYRef = useRef(0)
+  const touchEndYRef = useRef(0)
+
   const handleNextReel = () => {
     if (currentIndex < reels.length - 1) {
       setCurrentIndex((prev) => prev + 1)
@@ -208,6 +212,50 @@ export const ReelsView: React.FC<ReelsViewProps> = ({
       setCurrentIndex((prev) => prev - 1)
       setIsPlaying(true)
       setShowComments(false)
+    }
+  }
+
+  // Wheel scroll navigation (trackpad & mouse wheel)
+  const handleWheel = (e: React.WheelEvent) => {
+    if (showCreateModal || showComments) return
+    const now = Date.now()
+    if (now - lastScrollTimeRef.current < 450) return
+
+    if (e.deltaY > 30) {
+      lastScrollTimeRef.current = now
+      handleNextReel()
+    } else if (e.deltaY < -30) {
+      lastScrollTimeRef.current = now
+      handlePrevReel()
+    }
+  }
+
+  // Touch swipe navigation (mobile & Android APK)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (showCreateModal || showComments) return
+    touchStartYRef.current = e.touches[0].clientY
+    touchEndYRef.current = e.touches[0].clientY
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndYRef.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = () => {
+    if (showCreateModal || showComments) return
+    const deltaY = touchStartYRef.current - touchEndYRef.current
+    const now = Date.now()
+    if (now - lastScrollTimeRef.current < 350) return
+
+    // Swipe UP (distance > 45px) -> Next Reel
+    if (deltaY > 45) {
+      lastScrollTimeRef.current = now
+      handleNextReel()
+    }
+    // Swipe DOWN (distance > 45px) -> Previous Reel
+    else if (deltaY < -45) {
+      lastScrollTimeRef.current = now
+      handlePrevReel()
     }
   }
 
@@ -308,7 +356,14 @@ export const ReelsView: React.FC<ReelsViewProps> = ({
   }
 
   return (
-    <div className="reels-container">
+    <div
+      className="reels-container"
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{ touchAction: 'pan-y' }}
+    >
       {/* Upload Reel Shortcut */}
       <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 30 }}>
         <button

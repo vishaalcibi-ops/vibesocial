@@ -9,12 +9,15 @@ import {
   WifiOff,
   Check,
   CheckCheck,
+  Phone,
+  Video,
 } from 'lucide-react'
 import type { Conversation, Message, Profile } from '../../types/database.types'
 import { messageService } from '../../services/messageService'
 import { profileService } from '../../services/profileService'
 import { useAuth } from '../../context/AuthContext'
 import { NotesTray } from '../notes/NotesTray'
+import { CallModal } from '../calls/CallModal'
 
 interface MessagesViewProps {
   initialTargetUserId?: string | null
@@ -39,6 +42,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchProfiles, setSearchProfiles] = useState<Profile[]>([])
   const [searchingUsers, setSearchingUsers] = useState(false)
+  const [activeCallTarget, setActiveCallTarget] = useState<Partial<Profile> | null>(null)
+  const [activeCallMode, setActiveCallMode] = useState<'voice' | 'video'>('voice')
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   // Track online/offline status
@@ -540,6 +545,59 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Call and Video Call Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCallTarget(otherMember)
+                    setActiveCallMode('voice')
+                  }}
+                  title="Voice Call / Real Phone Dial"
+                  aria-label="Voice Call"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.14)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: '#10b981',
+                    borderRadius: '50%',
+                    width: '38px',
+                    height: '38px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'transform 0.15s',
+                  }}
+                >
+                  <Phone size={17} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCallTarget(otherMember)
+                    setActiveCallMode('video')
+                  }}
+                  title="Video Call"
+                  aria-label="Video Call"
+                  style={{
+                    background: 'rgba(236, 72, 153, 0.14)',
+                    border: '1px solid rgba(236, 72, 153, 0.35)',
+                    color: '#ec4899',
+                    borderRadius: '50%',
+                    width: '38px',
+                    height: '38px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'transform 0.15s',
+                  }}
+                >
+                  <Video size={17} />
+                </button>
+              </div>
             </div>
 
             {/* Chat Messages Scroll */}
@@ -792,6 +850,15 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {activeCallTarget && (
+        <CallModal
+          isOpen={Boolean(activeCallTarget)}
+          onClose={() => setActiveCallTarget(null)}
+          targetUser={activeCallTarget}
+          initialMode={activeCallMode}
+        />
       )}
     </div>
   )

@@ -49,6 +49,14 @@ export const authService = {
     return data
   },
 
+  async phoneSignIn(phoneNumber: string, username?: string, fullName?: string, avatarUrl?: string) {
+    if (getBackendProvider() === 'firebase') {
+      return authServiceFirebase.phoneSignIn(phoneNumber, username, fullName, avatarUrl)
+    }
+    // Fallback if provider is supabase
+    return authServiceFirebase.phoneSignIn(phoneNumber, username, fullName, avatarUrl)
+  },
+
   async signInWithGoogle() {
     if (getBackendProvider() === 'firebase') {
       return authServiceFirebase.signInWithGoogle()

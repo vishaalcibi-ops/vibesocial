@@ -314,8 +314,83 @@ export const authServiceFirebase = {
     }
   },
 
+  async phoneSignIn(phoneNumber: string, username?: string, fullName?: string, avatarUrl?: string) {
+    const cleanNum = phoneNumber.trim().replace(/[^0-9+]/g, '')
+    const digitsOnly = cleanNum.replace(/[^0-9]/g, '')
+    const userId = `phone_${digitsOnly.slice(-10)}`
+    const defaultUsername = username?.toLowerCase().replace(/[^a-z0-9_.]/g, '') || `user_${digitsOnly.slice(-4)}`
+    const displayName = fullName || defaultUsername
+
+    const profileData: Profile = {
+      id: userId,
+      username: defaultUsername,
+      full_name: displayName,
+      bio: 'Hey there! I am using VibeSocial 📱',
+      avatar_url: avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      website: '',
+      is_verified: false,
+      phone_number: cleanNum,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    if (isFirebaseConfigured()) {
+      try {
+        const userDocRef = doc(db, 'users', userId)
+        const snap = await getDoc(userDocRef)
+        if (!snap.exists()) {
+          await setDoc(userDocRef, profileData)
+        } else {
+          const existing = snap.data() as Profile
+          profileData.username = existing.username || profileData.username
+          profileData.full_name = existing.full_name || profileData.full_name
+          profileData.avatar_url = existing.avatar_url || profileData.avatar_url
+        }
+      } catch (e) {
+        console.warn('Firestore phone profile save notice (saved locally):', e)
+      }
+    }
+
+    const session = {
+      user: {
+        id: userId,
+        email: `${digitsOnly}@phone.vibesocial.app`,
+        phone: cleanNum,
+        user_metadata: {
+          full_name: profileData.full_name,
+          username: profileData.username,
+          phone: cleanNum,
+        },
+      },
+      access_token: `token_${userId}_${Date.now()}`,
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`vibesocial_profile_${userId}`, JSON.stringify(profileData))
+        localStorage.setItem('vibesocial_auth_session', JSON.stringify(session))
+        localStorage.setItem('vibesocial_auth_user', JSON.stringify(session.user))
+      } catch {}
+    }
+
+    // Trigger auth listeners immediately
+    if (this._onAuthChangeCallback) {
+      this._onAuthChangeCallback(session)
+    }
+
+    return { user: session.user, profile: profileData, session }
+  },
+
   async signOut() {
-    if (!isFirebaseConfigured()) return
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('vibesocial_auth_session')
+        localStorage.removeItem('vibesocial_auth_user')
+      } catch {}
+    }
+    if (this._onAuthChangeCallback) {
+      this._onAuthChangeCallback(null)
+    }
     if (Capacitor.isNativePlatform()) {
       try {
         await GoogleSignIn.signOut()
@@ -323,7 +398,10 @@ export const authServiceFirebase = {
         // ignore native sign-out error
       }
     }
-    await firebaseSignOut(auth)
+    if (!isFirebaseConfigured()) return
+    try {
+      await firebaseSignOut(auth)
+    } catch {}
   },
 
   async getUser(): Promise<User | null> {
@@ -335,6 +413,19 @@ export const authServiceFirebase = {
   },
 
   async getSession() {
+    // 1. Check local persistent session first for instant offline/APK boot
+    if (typeof window !== 'undefined') {
+      try {
+        const localSess = localStorage.getItem('vibesocial_auth_session')
+        if (localSess) {
+          const parsed = JSON.parse(localSess)
+          if (parsed && parsed.user?.id) {
+            return parsed
+          }
+        }
+      } catch {}
+    }
+
     if (!isFirebaseConfigured()) return null
     if (typeof (auth as any).authStateReady === 'function') {
       await auth.authStateReady()
@@ -376,9 +467,30 @@ export const authServiceFirebase = {
     }
   },
 
+  _onAuthChangeCallback: null as ((session: any) => void) | null,
+
   onAuthStateChange(callback: (session: any) => void) {
+    this._onAuthChangeCallback = callback
+
+    // Immediately trigger with cached session if present
+    if (typeof window !== 'undefined') {
+      try {
+        const localSess = localStorage.getItem('vibesocial_auth_session')
+        if (localSess) {
+          const parsed = JSON.parse(localSess)
+          if (parsed && parsed.user?.id) {
+            callback(parsed)
+          }
+        }
+      } catch {}
+    }
+
     if (!isFirebaseConfigured()) {
-      return { unsubscribe: () => {} }
+      return {
+        unsubscribe: () => {
+          this._onAuthChangeCallback = null
+        },
+      }
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -390,7 +502,7 @@ export const authServiceFirebase = {
           console.warn('Deferred token retrieval in onAuthStateChanged:', tokenErr)
         }
 
-        callback({
+        const sess = {
           user: {
             id: firebaseUser.uid,
             email: firebaseUser.email,
@@ -399,14 +511,30 @@ export const authServiceFirebase = {
             },
           },
           access_token: token,
-        })
+        }
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('vibesocial_auth_session', JSON.stringify(sess))
+            localStorage.setItem('vibesocial_auth_user', JSON.stringify(sess.user))
+          } catch {}
+        }
+
+        callback(sess)
       } else {
-        callback(null)
+        // Only clear if not in phone session
+        const localSess = typeof window !== 'undefined' ? localStorage.getItem('vibesocial_auth_session') : null
+        if (!localSess) {
+          callback(null)
+        }
       }
     })
 
     return {
-      unsubscribe,
+      unsubscribe: () => {
+        this._onAuthChangeCallback = null
+        unsubscribe()
+      },
     }
   },
 

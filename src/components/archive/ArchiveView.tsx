@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Archive, Clock, Eye, RotateCcw, Trash2, ArrowLeft, Image as ImageIcon } from 'lucide-react'
+import { Archive, Clock, Eye, RotateCcw, Trash2, ArrowLeft, Image as ImageIcon, Star } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { postService } from '../../services/postService'
 import { storyService } from '../../services/storyService'
+import { highlightService } from '../../services/highlightService'
 import type { Post, Story } from '../../types/database.types'
 
 interface ArchiveViewProps {
@@ -399,15 +400,39 @@ export const ArchiveView: React.FC<ArchiveViewProps> = ({ onBack, onPostClick })
               {selectedStory.caption && (
                 <p className="text-xs text-gray-300 line-clamp-1">{selectedStory.caption}</p>
               )}
-              <button
-                onClick={() => handleDeleteStory(selectedStory.id)}
-                disabled={actionLoading === selectedStory.id}
-                className="ml-auto p-2 text-red-400 hover:bg-red-500/10 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
-                title="Delete from archive"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!user || !selectedStory) return
+                    try {
+                      await highlightService.createHighlight(
+                        user.id,
+                        'Archive Memories ⭐',
+                        selectedStory.media_url,
+                        [selectedStory]
+                      )
+                      alert('Story added to Profile Highlights! ⭐')
+                    } catch {
+                      alert('Could not add to highlights.')
+                    }
+                  }}
+                  className="p-2 text-yellow-400 hover:bg-yellow-500/10 rounded-lg text-xs flex items-center gap-1.5 transition-colors font-semibold"
+                  title="Add to Highlights"
+                >
+                  <Star className="w-4 h-4 fill-yellow-400" />
+                  Highlight
+                </button>
+                <button
+                  onClick={() => handleDeleteStory(selectedStory.id)}
+                  disabled={actionLoading === selectedStory.id}
+                  className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+                  title="Delete from archive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>
