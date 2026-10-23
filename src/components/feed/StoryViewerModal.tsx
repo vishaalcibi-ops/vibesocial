@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX, Link2, Heart, Send } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Eye, Trash2, Pause, Play, Music, Volume2, VolumeX, Link2, Heart, Send, Star, MapPin } from 'lucide-react'
 import type { Story, StoryView } from '../../types/database.types'
 import { storyService } from '../../services/storyService'
 import { useAuth } from '../../context/AuthContext'
+import { highlightService, type StoryHighlight } from '../../services/highlightService'
+import { notificationService } from '../../services/notificationService'
 
 interface StoryViewerModalProps {
   storyGroup: { authorId: string; author: any; stories: Story[] } | null
@@ -44,6 +46,18 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   const [drawerTab, setDrawerTab] = useState<'viewers' | 'likes'>('viewers')
   const [replyText, setReplyText] = useState('')
   const [isHoldingLike, setIsHoldingLike] = useState(false)
+
+  // Highlights state
+  const [showHighlightDialog, setShowHighlightDialog] = useState(false)
+  const [userHighlights, setUserHighlights] = useState<StoryHighlight[]>([])
+  const [newHighlightTitle, setNewHighlightTitle] = useState('')
+  const [isCreatingNewHighlight, setIsCreatingNewHighlight] = useState(false)
+
+  // Interactive stickers state
+  const [pollVotes, setPollVotes] = useState<Record<string, 'opt1' | 'opt2'>>({})
+  const [showQuestionDialog, setShowQuestionDialog] = useState(false)
+  const [activeQuestionSticker, setActiveQuestionSticker] = useState<any>(null)
+  const [questionResponseText, setQuestionResponseText] = useState('')
 
   const timerRef = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -252,6 +266,84 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     if (!replyText.trim() || !currentStory || !user) return
     showToast(`Sent reply to @${storyGroup?.author?.username || 'user'}`)
     setReplyText('')
+  }
+
+  // Highlight Handlers (⭐ Profile Highlights)
+  const handleOpenHighlightModal = async () => {
+    if (!user || !currentStory) return
+    setIsPaused(true)
+    setShowHighlightDialog(true)
+    setIsCreatingNewHighlight(false)
+    setNewHighlightTitle('')
+    try {
+      const hls = await highlightService.getUserHighlights(user.id)
+      setUserHighlights(hls)
+    } catch {
+      setUserHighlights([])
+    }
+  }
+
+  const handleAddToExistingHighlight = async (hl: StoryHighlight) => {
+    if (!user || !currentStory) return
+    try {
+      await highlightService.addStoryToHighlight(user.id, hl.id, currentStory)
+      showToast(`Added story to "${hl.title}" ⭐`)
+      setShowHighlightDialog(false)
+      setIsPaused(false)
+    } catch {
+      showToast('Failed to add story to highlight.')
+    }
+  }
+
+  const handleCreateHighlight = async () => {
+    if (!user || !currentStory || !newHighlightTitle.trim()) return
+    try {
+      await highlightService.createHighlight(
+        user.id,
+        newHighlightTitle.trim(),
+        currentStory.media_url,
+        [currentStory]
+      )
+      showToast(`Created highlight: "${newHighlightTitle.trim()}" ⭐`)
+      setShowHighlightDialog(false)
+      setIsPaused(false)
+      setNewHighlightTitle('')
+      setIsCreatingNewHighlight(false)
+    } catch {
+      showToast('Failed to create highlight.')
+    }
+  }
+
+  // Interactive sticker handlers
+  const handleVotePoll = (stickerId: string, option: 'opt1' | 'opt2') => {
+    setPollVotes((prev) => ({ ...prev, [stickerId]: option }))
+    showToast(`Voted ${option === 'opt1' ? 'Option 1' : 'Option 2'}! 📊`)
+  }
+
+  const handleOpenQuestionModal = (stk: any) => {
+    setActiveQuestionSticker(stk)
+    setQuestionResponseText('')
+    setIsPaused(true)
+    setShowQuestionDialog(true)
+  }
+
+  const handleSubmitQuestionResponse = async () => {
+    if (!questionResponseText.trim() || !user || !storyGroup) return
+    try {
+      await notificationService.createNotification({
+        recipientId: storyGroup.authorId,
+        actorId: user.id,
+        type: 'mention',
+        resourceId: currentStory?.id,
+        resourceType: 'story_question',
+      })
+      showToast(`Response sent to @${storyGroup.author?.username || 'user'}! ✉️`)
+      setShowQuestionDialog(false)
+      setIsPaused(false)
+      setQuestionResponseText('')
+    } catch {
+      showToast('Failed to send response.')
+    }
   }
 
   // Pause / resume video playback
@@ -715,6 +807,226 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           )
         })()}
 
+        {/* Interactive Poll Sticker */}
+        {(() => {
+          const pollStk = currentStory.stickers?.find((s: any) => s.type === 'poll')
+          if (!pollStk) return null
+          const votedOpt = pollVotes[pollStk.id]
+          const q = pollStk.data?.question || 'Ask a question...'
+          const opt1 = pollStk.data?.option1 || 'YES'
+          const opt2 = pollStk.data?.option2 || 'NO'
+          const pct1 = votedOpt === 'opt1' ? 68 : votedOpt === 'opt2' ? 32 : 50
+          const pct2 = 100 - pct1
+
+          return (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                top: `${pollStk.y || 45}%`,
+                left: `${pollStk.x || 50}%`,
+                transform: `translate(-50%, -50%) scale(${pollStk.scale || 1})`,
+                zIndex: 38,
+                width: '240px',
+                backgroundColor: '#ffffff',
+                borderRadius: '18px',
+                padding: '14px',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+                color: '#111827',
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ margin: '0 0 12px', fontWeight: 800, fontSize: '14px' }}>{q}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleVotePoll(pollStk.id, 'opt1')}
+                  style={{
+                    background: votedOpt === 'opt1' ? 'linear-gradient(135deg, #ec4899, #8b5cf6)' : '#f3f4f6',
+                    color: votedOpt === 'opt1' ? '#ffffff' : '#111827',
+                    border: 'none',
+                    padding: '10px 8px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span>{opt1}</span>
+                  {votedOpt && <span style={{ fontSize: '11px', marginTop: '2px', opacity: 0.9 }}>{pct1}%</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVotePoll(pollStk.id, 'opt2')}
+                  style={{
+                    background: votedOpt === 'opt2' ? 'linear-gradient(135deg, #ec4899, #8b5cf6)' : '#f3f4f6',
+                    color: votedOpt === 'opt2' ? '#ffffff' : '#111827',
+                    border: 'none',
+                    padding: '10px 8px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span>{opt2}</span>
+                  {votedOpt && <span style={{ fontSize: '11px', marginTop: '2px', opacity: 0.9 }}>{pct2}%</span>}
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Interactive Questions Sticker */}
+        {(() => {
+          const qStk = currentStory.stickers?.find((s: any) => s.type === 'questions')
+          if (!qStk) return null
+          return (
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+                handleOpenQuestionModal(qStk)
+              }}
+              style={{
+                position: 'absolute',
+                top: `${qStk.y || 40}%`,
+                left: `${qStk.x || 50}%`,
+                transform: `translate(-50%, -50%) scale(${qStk.scale || 1})`,
+                zIndex: 38,
+                width: '230px',
+                backgroundColor: '#ffffff',
+                borderRadius: '18px',
+                overflow: 'hidden',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ background: '#f43f5e', color: 'white', padding: '10px', textAlign: 'center', fontWeight: 800, fontSize: '13px' }}>
+                {qStk.data?.prompt || 'Ask me a question...'}
+              </div>
+              <div style={{ padding: '14px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', background: '#fafafa' }}>
+                Tap to reply... ✍️
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Interactive Notification Reminder Sticker */}
+        {(() => {
+          const notifStk = currentStory.stickers?.find((s: any) => s.type === 'notify')
+          if (!notifStk) return null
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                showToast(`Reminder set for "${notifStk.data?.title || 'Story Event'}"! 🔔`)
+              }}
+              style={{
+                position: 'absolute',
+                top: `${notifStk.y || 50}%`,
+                left: `${notifStk.x || 50}%`,
+                transform: `translate(-50%, -50%) scale(${notifStk.scale || 1})`,
+                zIndex: 38,
+                background: 'linear-gradient(135deg, #1f2937, #111827)',
+                color: 'white',
+                padding: '10px 18px',
+                borderRadius: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                border: '1px solid rgba(255,255,255,0.25)',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>🔔</span>
+              <span>Remind Me: {notifStk.data?.title || 'Event'}</span>
+            </button>
+          )
+        })()}
+
+        {/* Interactive Food Orders Sticker */}
+        {(() => {
+          const foodStk = currentStory.stickers?.find((s: any) => s.type === 'food_orders')
+          if (!foodStk) return null
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                showToast(`Order placed for ${foodStk.data?.dish || 'Special Dish'}! 🍕 Deliveries on the way!`)
+              }}
+              style={{
+                position: 'absolute',
+                top: `${foodStk.y || 50}%`,
+                left: `${foodStk.x || 50}%`,
+                transform: `translate(-50%, -50%) scale(${foodStk.scale || 1})`,
+                zIndex: 38,
+                background: '#ffffff',
+                color: '#111827',
+                padding: '10px 18px',
+                borderRadius: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                fontWeight: 800,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>🍕</span>
+              <span>Order {foodStk.data?.dish || 'Food'} ({foodStk.data?.price || '$12'})</span>
+            </button>
+          )
+        })()}
+
+        {/* Interactive Location Sticker (Click to Open Map) */}
+        {(() => {
+          const locStk = currentStory.stickers?.find((s: any) => s.type === 'location')
+          if (!locStk) return null
+          const mapQuery = locStk.data?.full || locStk.data?.name || 'Location'
+          return (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                top: `${locStk.y || 25}%`,
+                left: `${locStk.x || 50}%`,
+                transform: `translate(-50%, -50%) scale(${locStk.scale || 1})`,
+                zIndex: 38,
+                background: 'linear-gradient(135deg, #f97316, #ec4899)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '24px',
+                fontWeight: 800,
+                fontSize: '12px',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              <MapPin size={14} />
+              <span>{locStk.data?.name || 'Exact Location'}</span>
+            </a>
+          )
+        })()}
+
         {/* Story Media */}
         <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
           {mediaError ? (
@@ -907,6 +1219,31 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
               >
                 <Heart size={14} fill={storyLikes.length > 0 ? '#ef4444' : 'none'} />
                 <span>{storyLikes.length} {storyLikes.length === 1 ? 'like' : 'likes'}</span>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenHighlightModal()
+                }}
+                title="Add to Profile Highlights"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#fbbf24',
+                  background: 'rgba(0,0,0,0.6)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: '1px solid rgba(251, 191, 36, 0.35)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Star size={14} fill="#fbbf24" />
+                <span>Highlight</span>
               </button>
             </div>
           ) : (
@@ -1221,6 +1558,273 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             }
           }
         `}</style>
+        {/* Add to Highlights Modal Dialog */}
+        {showHighlightDialog && (
+          <div
+            className="modal-backdrop"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowHighlightDialog(false)
+              setIsPaused(false)
+            }}
+            style={{
+              zIndex: 140,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: '360px',
+                background: '#1c1c1e',
+                borderRadius: '24px',
+                padding: '20px',
+                color: 'white',
+                boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
+                border: '1px solid rgba(255,255,255,0.15)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <span style={{ fontWeight: 800, fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Star size={16} fill="#fbbf24" color="#fbbf24" />
+                  <span>Add to Profile Highlights</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHighlightDialog(false)
+                    setIsPaused(false)
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Existing highlights list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '40vh', overflowY: 'auto', marginBottom: '16px' }}>
+                {userHighlights.length === 0 ? (
+                  <p style={{ color: '#9ca3af', fontSize: '12px', textAlign: 'center', margin: '14px 0' }}>
+                    No highlights yet. Create your first one below!
+                  </p>
+                ) : (
+                  userHighlights.map((hl) => (
+                    <div
+                      key={hl.id}
+                      onClick={() => handleAddToExistingHighlight(hl)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: '14px',
+                        background: 'rgba(255,255,255,0.06)',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img
+                          src={hl.cover_url}
+                          alt={hl.title}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #fbbf24' }}
+                        />
+                        <div>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: '13px' }}>{hl.title}</p>
+                          <p style={{ margin: 0, color: '#9ca3af', fontSize: '11px' }}>{hl.stories?.length || 0} stories</p>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 700 }}>+ Add</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Create New Highlight Input */}
+              {isCreatingNewHighlight ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Highlight Name (e.g. Summer ☀️)"
+                    value={newHighlightTitle}
+                    onChange={(e) => setNewHighlightTitle(e.target.value)}
+                    autoFocus
+                    maxLength={30}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: '#2c2c2e',
+                      color: 'white',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      fontSize: '13px',
+                      outline: 'none',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingNewHighlight(false)}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '12px',
+                        background: 'rgba(255,255,255,0.1)',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateHighlight}
+                      disabled={!newHighlightTitle.trim()}
+                      style={{
+                        flex: 2,
+                        padding: '8px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                        color: '#111827',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: newHighlightTitle.trim() ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      Save Highlight ⭐
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingNewHighlight(true)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '14px',
+                    background: 'rgba(251, 191, 36, 0.15)',
+                    color: '#fbbf24',
+                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>+</span>
+                  <span>New Highlight</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Question Reply Modal Dialog */}
+        {showQuestionDialog && activeQuestionSticker && (
+          <div
+            className="modal-backdrop"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowQuestionDialog(false)
+              setIsPaused(false)
+            }}
+            style={{
+              zIndex: 140,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: '340px',
+                background: '#ffffff',
+                borderRadius: '24px',
+                padding: '20px',
+                color: '#111827',
+                boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
+              }}
+            >
+              <div style={{ background: '#f43f5e', color: 'white', padding: '10px 14px', borderRadius: '14px', textAlign: 'center', fontWeight: 800, fontSize: '13px', marginBottom: '14px' }}>
+                {activeQuestionSticker.data?.prompt || 'Ask me a question...'}
+              </div>
+              <textarea
+                placeholder="Type your response to the creator..."
+                value={questionResponseText}
+                onChange={(e) => setQuestionResponseText(e.target.value)}
+                autoFocus
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '14px',
+                  border: '1.5px solid #e5e7eb',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  resize: 'none',
+                  marginBottom: '14px',
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuestionDialog(false)
+                    setIsPaused(false)
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '9px',
+                    borderRadius: '14px',
+                    background: '#f3f4f6',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitQuestionResponse}
+                  disabled={!questionResponseText.trim()}
+                  style={{
+                    flex: 2,
+                    padding: '9px',
+                    borderRadius: '14px',
+                    background: '#ec4899',
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    cursor: questionResponseText.trim() ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  Send Response
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

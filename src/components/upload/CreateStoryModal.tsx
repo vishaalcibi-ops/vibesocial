@@ -21,13 +21,15 @@ import {
   Star,
   Trash2,
   Search,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { storyService } from '../../services/storyService'
 import { useAuth } from '../../context/AuthContext'
 import { SAMPLE_STORY_PRESETS } from '../../constants/presets'
 import { compressImageFile } from '../../utils/imageCompressor'
 import { INSTAGRAM_FILTERS } from '../../constants/storyFilters'
-import { TRENDING_TRACKS, musicService } from '../../services/musicService'
+import { TRENDING_TRACKS, musicService, getFullSongLyrics } from '../../services/musicService'
 import {
   bakeStoryCanvas,
   type DrawingStroke,
@@ -163,6 +165,11 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
   const [showGridGuides, setShowGridGuides] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
 
+  // Background Adjustment State
+  const [bgFitMode, setBgFitMode] = useState<'cover' | 'contain'>('cover')
+  const [bgScale, setBgScale] = useState<number>(1.0)
+  const [showBgControls, setShowBgControls] = useState(false)
+
   // Music State & Real-time Live Search
   const [showMusicPicker, setShowMusicPicker] = useState(false)
   const [selectedMusic, setSelectedMusic] = useState<AudioTrack | null>(null)
@@ -170,6 +177,9 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
   const [musicTracks, setMusicTracks] = useState<AudioTrack[]>(TRENDING_TRACKS)
   const [searchingMusic, setSearchingMusic] = useState(false)
   const [previewPlayingId, setPreviewPlayingId] = useState<string | null>(null)
+  const [isStoryAudioMuted, setIsStoryAudioMuted] = useState(false)
+  const [activeTrackForLyrics, setActiveTrackForLyrics] = useState<AudioTrack | null>(null)
+  const [selectedLyricSnippet, setSelectedLyricSnippet] = useState<string>('')
   const musicAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Sticker Tray State
@@ -314,7 +324,14 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
     }
   }
 
-  // Music handlers
+  // Synchronize audio mute state
+  useEffect(() => {
+    if (musicAudioRef.current) {
+      musicAudioRef.current.muted = isStoryAudioMuted
+    }
+  }, [isStoryAudioMuted])
+
+  // Music handlers with live in-studio playback and lyrics selection
   const toggleMusicPreview = (track: AudioTrack) => {
     const tid = track.id || track.title
     if (previewPlayingId === tid) {
@@ -325,23 +342,80 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         musicAudioRef.current = new Audio()
       }
       musicAudioRef.current.src = track.audio_url
+      musicAudioRef.current.loop = true
+      musicAudioRef.current.muted = isStoryAudioMuted
       musicAudioRef.current.play().catch(() => {})
       setPreviewPlayingId(tid)
     }
   }
 
-  const selectTrack = (track: AudioTrack) => {
+  const startLyricsSelection = (track: AudioTrack) => {
+    setActiveTrackForLyrics(track)
+    const lyrics = getFullSongLyrics(track)
+    setSelectedLyricSnippet(lyrics[0]?.text || `${track.title} • ${track.artist}`)
+    if (!musicAudioRef.current) {
+      musicAudioRef.current = new Audio()
+    }
+    musicAudioRef.current.src = track.audio_url
+    musicAudioRef.current.loop = true
+    musicAudioRef.current.muted = isStoryAudioMuted
+    musicAudioRef.current.play().catch(() => {})
+    setPreviewPlayingId(track.id || track.title)
+  }
+
+  const confirmMusicAndLyrics = (track: AudioTrack, lyricLine?: string) => {
     setSelectedMusic(track)
-    if (musicAudioRef.current) musicAudioRef.current.pause()
-    setPreviewPlayingId(null)
+    const chosenLyric = lyricLine || selectedLyricSnippet || `${track.title} • ${track.artist}`
+
+    // Automatically add a resizable Music card sticker onto the canvas
+    const musicSticker: StoryCanvasSticker = {
+      id: `sticker_music_${Date.now()}`,
+      type: 'music',
+      x: 50,
+      y: 35,
+      scale: 1,
+      rotation: 0,
+      data: {
+        track,
+        title: track.title,
+        artist: track.artist,
+        artwork_url: track.artwork_url,
+        selectedLyric: chosenLyric,
+      },
+    }
+
+    setStickers((prev) => [...prev.filter((s) => s.type !== 'music'), musicSticker])
+    setSelectedItemId(musicSticker.id)
+    setSelectedItemType('sticker')
+
+    // Ensure audio continues playing audibly for the story
+    if (!musicAudioRef.current) {
+      musicAudioRef.current = new Audio()
+    }
+    musicAudioRef.current.src = track.audio_url
+    musicAudioRef.current.loop = true
+    musicAudioRef.current.muted = isStoryAudioMuted
+    musicAudioRef.current.play().catch(() => {})
+
+    setActiveTrackForLyrics(null)
     setShowMusicPicker(false)
-    showToast(`🎵 Music added: ${track.title}`)
+    showToast(`🎵 Music & lyrics added: ${track.title}`)
+  }
+
+  const selectTrack = (track: AudioTrack) => {
+    startLyricsSelection(track)
   }
 
   const removeTrack = () => {
     setSelectedMusic(null)
-    if (musicAudioRef.current) musicAudioRef.current.pause()
+    setStickers((prev) => prev.filter((s) => s.type !== 'music'))
+    if (musicAudioRef.current) {
+      musicAudioRef.current.pause()
+      musicAudioRef.current.src = ''
+    }
     setPreviewPlayingId(null)
+    setActiveTrackForLyrics(null)
+    showToast('Music track removed')
   }
 
   // Text Overlay Helpers
@@ -517,6 +591,32 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
     }
   }
 
+  const handleMaximize = (id: string, type: 'sticker' | 'text') => {
+    if (type === 'sticker') {
+      setStickers((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, scale: 1.65 } : s))
+      )
+    } else {
+      setTextOverlays((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, scale: 1.65 } : t))
+      )
+    }
+    showToast('Sticker maximized ⤢')
+  }
+
+  const handleMinimize = (id: string, type: 'sticker' | 'text') => {
+    if (type === 'sticker') {
+      setStickers((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, scale: 0.65 } : s))
+      )
+    } else {
+      setTextOverlays((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, scale: 0.65 } : t))
+      )
+    }
+    showToast('Sticker minimized ⤡')
+  }
+
   const handleRotate = (id: string, type: 'sticker' | 'text') => {
     if (type === 'sticker') {
       setStickers((prev) =>
@@ -545,6 +645,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         effect: selectedEffect,
         isAiLabeled,
         isPaidPartnership,
+        bgFitMode,
+        bgScale,
       })
 
       // Download baked image
@@ -579,7 +681,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
     try {
       let finalMediaUrl = activeMediaUrl
 
-      // Bake canvas if image has filters, stickers, drawings, or text
+      // Bake canvas if image has filters, stickers, drawings, text, or background adjustments
       if (
         activeMediaType === 'image' &&
         (selectedFilter !== 'normal' ||
@@ -588,7 +690,9 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
           textOverlays.length > 0 ||
           selectedEffect !== 'none' ||
           isAiLabeled ||
-          isPaidPartnership)
+          isPaidPartnership ||
+          bgScale !== 1.0 ||
+          bgFitMode === 'contain')
       ) {
         finalMediaUrl = await bakeStoryCanvas(activeMediaUrl, currentFilterObj.css, null, {
           drawingStrokes,
@@ -597,6 +701,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
           effect: selectedEffect,
           isAiLabeled,
           isPaidPartnership,
+          bgFitMode,
+          bgScale,
         })
       }
 
@@ -755,30 +861,218 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
             )}
           </div>
 
-          {/* Grid guides button */}
-          <button
-            type="button"
-            onClick={() => setShowGridGuides(!showGridGuides)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Audio In-Studio Mute/Unmute Toggle */}
+            {selectedMusic && (
+              <button
+                type="button"
+                onClick={() => setIsStoryAudioMuted(!isStoryAudioMuted)}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.55)',
+                  backdropFilter: 'blur(8px)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  color: isStoryAudioMuted ? '#f87171' : '#ec4899',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                title={isStoryAudioMuted ? 'Unmute Story Music' : 'Mute Story Music'}
+              >
+                {isStoryAudioMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+              </button>
+            )}
+
+            {/* Background Image Adjust & Sizing Button */}
+            <button
+              type="button"
+              onClick={() => setShowBgControls(!showBgControls)}
+              style={{
+                background: showBgControls ? 'rgba(236, 72, 153, 0.35)' : 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(8px)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                color: showBgControls ? '#ec4899' : '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 800,
+              }}
+              title="Adjust Story Background Size (Zoom & Fit)"
+            >
+              🖼️
+            </button>
+
+            {/* Grid guides button */}
+            <button
+              type="button"
+              onClick={() => setShowGridGuides(!showGridGuides)}
+              style={{
+                background: showGridGuides ? 'rgba(236, 72, 153, 0.35)' : 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(8px)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                color: showGridGuides ? '#ec4899' : '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 800,
+              }}
+              title="Toggle Rule-of-Thirds Grid"
+            >
+              #
+            </button>
+          </div>
+        </div>
+
+        {/* Floating Background Image Adjust Toolbar */}
+        {showBgControls && (
+          <div
             style={{
-              background: showGridGuides ? 'rgba(236, 72, 153, 0.35)' : 'rgba(0, 0, 0, 0.55)',
-              backdropFilter: 'blur(8px)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '40px',
-              height: '40px',
-              color: showGridGuides ? '#ec4899' : '#ffffff',
+              position: 'absolute',
+              top: isMobile ? 'calc(env(safe-area-inset-top, 14px) + 56px)' : '64px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(20, 20, 24, 0.95)',
+              backdropFilter: 'blur(16px)',
+              padding: '6px 12px',
+              borderRadius: '24px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
+              zIndex: 50,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 800,
+              gap: '8px',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: 700,
             }}
-            title="Toggle Rule-of-Thirds Grid"
           >
-            #
-          </button>
-        </div>
+            <span style={{ color: '#9ca3af' }}>Background:</span>
+            <button
+              type="button"
+              onClick={() => setBgFitMode(bgFitMode === 'cover' ? 'contain' : 'cover')}
+              style={{
+                background: bgFitMode === 'contain' ? '#ec4899' : 'rgba(255,255,255,0.12)',
+                color: 'white',
+                border: 'none',
+                padding: '4px 8px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {bgFitMode === 'cover' ? 'Fill' : 'Fit'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBgScale((s) => Math.min(2.5, +(s + 0.15).toFixed(2)))}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                color: 'white',
+                border: 'none',
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              title="Zoom In Background"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => setBgScale((s) => Math.max(0.5, +(s - 0.15).toFixed(2)))}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                color: 'white',
+                border: 'none',
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              title="Zoom Out Background"
+            >
+              -
+            </button>
+            <button
+              type="button"
+              onClick={() => setBgScale(1.6)}
+              style={{
+                background: bgScale >= 1.5 ? '#ec4899' : 'rgba(255,255,255,0.12)',
+                color: 'white',
+                border: 'none',
+                padding: '4px 8px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+              title="Maximize Background"
+            >
+              Maximize
+            </button>
+            <button
+              type="button"
+              onClick={() => setBgScale(0.75)}
+              style={{
+                background: bgScale <= 0.8 ? '#ec4899' : 'rgba(255,255,255,0.12)',
+                color: 'white',
+                border: 'none',
+                padding: '4px 8px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+              title="Minimize Background"
+            >
+              Minimize
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBgScale(1.0)
+                setBgFitMode('cover')
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                color: '#9ca3af',
+                border: 'none',
+                padding: '4px 6px',
+                borderRadius: '10px',
+                fontSize: '10px',
+                cursor: 'pointer',
+              }}
+              title="Reset Background Size"
+            >
+              Reset
+            </button>
+          </div>
+        )}
 
         {/* 9:16 Canvas Area */}
         <div
@@ -809,7 +1103,9 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: bgFitMode,
+                transform: `scale(${bgScale})`,
+                transition: isDragging ? 'none' : 'transform 0.15s ease',
                 filter: currentFilterObj.css,
               }}
             />
@@ -820,7 +1116,9 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: bgFitMode,
+                transform: `scale(${bgScale})`,
+                transition: isDragging ? 'none' : 'transform 0.15s ease',
                 filter: currentFilterObj.css,
               }}
             />
@@ -946,6 +1244,54 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
+                        handleMaximize(st.id, 'sticker')
+                      }}
+                      title="Maximize Size (Full / Hero)"
+                      style={{
+                        background: 'rgba(236, 72, 153, 0.35)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: '#f472b6',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⤢
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleMinimize(st.id, 'sticker')
+                      }}
+                      title="Minimize Size (Compact)"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⤡
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
                         handleZoomIn(st.id, 'sticker')
                       }}
                       title="Zoom In"
@@ -1039,24 +1385,157 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                   </div>
                 )}
 
-                {/* Location Sticker */}
+                {/* Location Sticker (Pill, Badge, or Map) */}
                 {st.type === 'location' && (
+                  st.data?.style === 'badge' ? (
+                    <div
+                      style={{
+                        background: '#18181b',
+                        color: 'white',
+                        padding: '10px 16px',
+                        borderRadius: '16px',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <span style={{ fontSize: '18px' }}>📍</span>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '13px' }}>{st.data?.name || 'Current Location'}</div>
+                        {st.data?.full && <div style={{ fontSize: '10px', color: '#9ca3af', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.data.full}</div>}
+                      </div>
+                    </div>
+                  ) : st.data?.style === 'map' ? (
+                    <div
+                      style={{
+                        width: '180px',
+                        background: '#ffffff',
+                        color: '#111827',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                      }}
+                    >
+                      <div style={{ height: '70px', background: 'linear-gradient(135deg, #3b82f6, #10b981)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <span style={{ fontSize: '26px' }}>🗺️</span>
+                        <div style={{ position: 'absolute', bottom: '4px', right: '6px', background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '9px', padding: '1px 5px', borderRadius: '4px' }}>MAP</div>
+                      </div>
+                      <div style={{ padding: '8px 10px', fontWeight: 800, fontSize: '12px', textAlign: 'center' }}>
+                        {st.data?.name || 'Exact Location'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        background: 'linear-gradient(135deg, #f97316, #ec4899)',
+                        color: 'white',
+                        padding: '8px 16px',
+                        borderRadius: '24px',
+                        fontWeight: 800,
+                        fontSize: '13px',
+                        boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>📍 {st.data?.name || 'Exact Location'}</span>
+                    </div>
+                  )
+                )}
+
+                {/* Resizable Music Poster Card Sticker with Full Lyrics */}
+                {st.type === 'music' && (
                   <div
                     style={{
-                      background: 'linear-gradient(135deg, #f97316, #ec4899)',
+                      width: '240px',
+                      background: 'linear-gradient(135deg, rgba(20, 20, 24, 0.95), rgba(30, 30, 36, 0.95))',
+                      borderRadius: '18px',
+                      padding: '12px 14px',
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+                      border: '1px solid rgba(255,255,255,0.18)',
+                      backdropFilter: 'blur(16px)',
                       color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '24px',
-                      fontWeight: 800,
-                      fontSize: '13px',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <span>{st.data?.name || '📍 Current Location'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <img
+                        src={st.data?.track?.artwork_url || st.data?.artwork_url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100'}
+                        alt={st.data?.title || 'Song'}
+                        style={{ width: '46px', height: '46px', borderRadius: '10px', objectFit: 'cover', boxShadow: '0 4px 10px rgba(0,0,0,0.5)' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontWeight: 800, fontSize: '13px', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {st.data?.track?.title || st.data?.title || 'Music Track'}
+                        </p>
+                        <p style={{ margin: '2px 0 0', fontWeight: 600, fontSize: '11px', color: '#a1a1aa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {st.data?.track?.artist || st.data?.artist || 'Artist'}
+                        </p>
+                      </div>
+                      {/* Equalizer animation wave bars */}
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '16px' }}>
+                        <span style={{ width: '3px', height: '12px', background: '#ec4899', borderRadius: '2px' }} />
+                        <span style={{ width: '3px', height: '16px', background: '#ec4899', borderRadius: '2px' }} />
+                        <span style={{ width: '3px', height: '9px', background: '#ec4899', borderRadius: '2px' }} />
+                      </div>
+                    </div>
+                    {/* Selected Lyric line preview */}
+                    {st.data?.selectedLyric && (
+                      <div
+                        style={{
+                          background: 'rgba(255,255,255,0.08)',
+                          borderRadius: '10px',
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#fbcfe8',
+                          borderLeft: '3px solid #ec4899',
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        &ldquo;{st.data.selectedLyric}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Animated GIF & Android 3D Emoji GIF Sticker */}
+                {st.type === 'gif' && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img
+                      src={st.data?.url}
+                      alt={st.data?.label || 'GIF'}
+                      style={{
+                        maxWidth: '160px',
+                        maxHeight: '160px',
+                        objectFit: 'contain',
+                        filter: 'drop-shadow(0 8px 18px rgba(0,0,0,0.5))',
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Cutout Photo Sticker (Custom outline & shapes) */}
+                {st.type === 'cutouts' && (
+                  <div
+                    style={{
+                      maxWidth: '180px',
+                      maxHeight: '180px',
+                      borderRadius: st.data?.shape === 'circle' ? '50%' : '16px',
+                      overflow: 'hidden',
+                      border: '4px solid #ffffff',
+                      filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.6))',
+                      backgroundColor: '#000000',
+                    }}
+                  >
+                    <img
+                      src={st.data?.url}
+                      alt="Cutout sticker"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   </div>
                 )}
 
@@ -1127,6 +1606,68 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                         {st.data?.option2 || 'NO'}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Notification Reminder Sticker */}
+                {st.type === 'notify' && (
+                  <div
+                    style={{
+                      background: 'linear-gradient(135deg, #1f2937, #111827)',
+                      color: 'white',
+                      padding: '10px 18px',
+                      borderRadius: '24px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                    }}
+                  >
+                    <span style={{ fontSize: '16px' }}>🔔</span>
+                    <span>{st.data?.title || 'Remind Me'}</span>
+                  </div>
+                )}
+
+                {/* Food Orders Sticker */}
+                {st.type === 'food_orders' && (
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      color: '#111827',
+                      padding: '10px 16px',
+                      borderRadius: '20px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                      border: '1px solid rgba(0,0,0,0.1)',
+                    }}
+                  >
+                    <span style={{ fontSize: '18px' }}>🍕</span>
+                    <span>{st.data?.dish || 'Order Food'} • {st.data?.price || '$12'}</span>
+                  </div>
+                )}
+
+                {/* Avatar Sticker */}
+                {st.type === 'avatar' && (
+                  <div style={{ textAlign: 'center' }}>
+                    <img
+                      src={st.data?.url}
+                      alt="Avatar"
+                      style={{
+                        width: '110px',
+                        height: '110px',
+                        borderRadius: '50%',
+                        border: '3px solid white',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                        objectFit: 'cover',
+                      }}
+                    />
                   </div>
                 )}
 
@@ -1250,15 +1791,16 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                   </div>
                 )}
 
-                {/* Vintage Polaroid Frames Sticker */}
+                {/* Frames Sticker with Inner Image Upload Support */}
                 {st.type === 'frames' && (
                   <div
                     style={{
                       width: '180px',
-                      backgroundColor: '#ffffff',
-                      borderRadius: '6px',
+                      backgroundColor: st.data?.style === 'retro' ? '#f5efe6' : st.data?.style === 'film' ? '#111827' : '#ffffff',
+                      borderRadius: '8px',
                       padding: '12px 12px 24px 12px',
-                      boxShadow: '0 10px 30px rgba(0,0,0,0.7)',
+                      boxShadow: st.data?.style === 'neon' ? '0 0 20px rgba(236, 72, 153, 0.6)' : '0 10px 30px rgba(0,0,0,0.7)',
+                      border: st.data?.style === 'neon' ? '2px solid #ec4899' : 'none',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -1276,10 +1818,10 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                         justifyContent: 'center',
                       }}
                     >
-                      {activeMediaUrl ? (
+                      {st.data?.innerImage || activeMediaUrl ? (
                         <img
-                          src={activeMediaUrl}
-                          alt="Polaroid frame"
+                          src={st.data?.innerImage || activeMediaUrl}
+                          alt="Frame photo"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       ) : (
@@ -1291,12 +1833,12 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                         marginTop: '10px',
                         fontSize: '11px',
                         fontWeight: 800,
-                        color: '#1f2937',
+                        color: st.data?.style === 'film' ? '#ffffff' : '#1f2937',
                         fontFamily: '"Courier New", Courier, monospace',
                         letterSpacing: '1px',
                       }}
                     >
-                      {st.data?.label || 'VIBE POLAROID'}
+                      {st.data?.label || 'VIBE FRAME'}
                     </div>
                     <div style={{ fontSize: '9px', color: '#9ca3af', marginTop: '2px' }}>
                       {st.data?.date || new Date().toLocaleDateString()}
@@ -1424,6 +1966,54 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleMaximize(txtId, 'text')
+                      }}
+                      title="Maximize Size"
+                      style={{
+                        background: 'rgba(236, 72, 153, 0.35)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: '#f472b6',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⤢
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleMinimize(txtId, 'text')
+                      }}
+                      title="Minimize Size"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⤡
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -2426,33 +3016,186 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               overflowY: 'auto',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span style={{ color: 'white', fontWeight: 700, fontSize: '15px' }}>🎵 Choose Music for Story</span>
-              <button
-                type="button"
-                onClick={() => setShowMusicPicker(false)}
-                style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
+            {activeTrackForLyrics ? (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTrackForLyrics(null)}
+                      style={{ background: 'none', border: 'none', color: '#ec4899', cursor: 'pointer', padding: 0 }}
+                    >
+                      <ChevronLeft size={22} />
+                    </button>
+                    <span style={{ color: 'white', fontWeight: 700, fontSize: '15px' }}>Select Lyrics Snippet</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTrackForLyrics(null)
+                      setShowMusicPicker(false)
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
 
-            <div style={{ position: 'relative', marginBottom: '14px' }}>
-              <Search size={15} style={{ position: 'absolute', left: '12px', top: '12px', color: '#8e8e93' }} />
-              <input
-                type="text"
-                placeholder="Search songs or artists..."
-                value={musicSearch}
-                onChange={(e) => setMusicSearch(e.target.value)}
-                style={{ width: '100%', paddingLeft: '36px', backgroundColor: '#2c2c2e', color: 'white', border: 'none', borderRadius: '12px' }}
-              />
-            </div>
+                {/* Selected Track Preview Banner */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px',
+                    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(236, 72, 153, 0.3)',
+                    marginBottom: '14px',
+                  }}
+                >
+                  <img
+                    src={activeTrackForLyrics.artwork_url}
+                    alt={activeTrackForLyrics.title}
+                    style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover' }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {activeTrackForLyrics.title}
+                    </p>
+                    <p style={{ margin: '2px 0 0', color: '#a1a1aa', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {activeTrackForLyrics.artist}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleMusicPreview(activeTrackForLyrics)}
+                    style={{
+                      background: '#ec4899',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '36px',
+                      height: '36px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(236, 72, 153, 0.4)',
+                    }}
+                  >
+                    {previewPlayingId === (activeTrackForLyrics.id || activeTrackForLyrics.title) ? <Pause size={16} /> : <Play size={16} />}
+                  </button>
+                </div>
 
-            {searchingMusic && (
-              <div style={{ textAlign: 'center', padding: '12px', color: '#ec4899', fontSize: '13px', fontWeight: 600 }}>
-                🎵 Searching Tamil & global tracks...
+                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '0 0 10px', fontWeight: 600 }}>
+                  Tap a lyric line to showcase on your story:
+                </p>
+
+                {/* Full lyrics list with time markers */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '42vh', overflowY: 'auto', paddingRight: '4px' }}>
+                  {getFullSongLyrics(activeTrackForLyrics).map((line, idx) => {
+                    const isSelectedLine = selectedLyricSnippet === line.text
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedLyricSnippet(line.text)}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          background: isSelectedLine ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(168, 85, 247, 0.3))' : 'rgba(255,255,255,0.06)',
+                          border: isSelectedLine ? '1.5px solid #ec4899' : '1px solid rgba(255,255,255,0.08)',
+                          color: isSelectedLine ? '#ffffff' : '#d1d5db',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '10px',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#9ca3af', fontFamily: 'monospace', minWidth: '32px' }}>
+                            {String(Math.floor(line.time / 60)).padStart(2, '0')}:{String(line.time % 60).padStart(2, '0')}
+                          </span>
+                          <span style={{ fontSize: '13px', fontWeight: isSelectedLine ? 800 : 500 }}>
+                            {line.text}
+                          </span>
+                        </div>
+                        {isSelectedLine && <Check size={16} color="#ec4899" />}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => confirmMusicAndLyrics(activeTrackForLyrics, '')}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '14px',
+                      background: 'rgba(255,255,255,0.1)',
+                      color: 'white',
+                      border: 'none',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Track Only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmMusicAndLyrics(activeTrackForLyrics, selectedLyricSnippet)}
+                    style={{
+                      flex: 2,
+                      padding: '10px',
+                      borderRadius: '14px',
+                      background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                      color: 'white',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(236, 72, 153, 0.4)',
+                    }}
+                  >
+                    Add with Lyrics ✨
+                  </button>
+                </div>
               </div>
-            )}
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <span style={{ color: 'white', fontWeight: 700, fontSize: '15px' }}>🎵 Choose Music for Story</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMusicPicker(false)}
+                    style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div style={{ position: 'relative', marginBottom: '14px' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '12px', top: '12px', color: '#8e8e93' }} />
+                  <input
+                    type="text"
+                    placeholder="Search songs or artists..."
+                    value={musicSearch}
+                    onChange={(e) => setMusicSearch(e.target.value)}
+                    style={{ width: '100%', paddingLeft: '36px', backgroundColor: '#2c2c2e', color: 'white', border: 'none', borderRadius: '12px' }}
+                  />
+                </div>
+
+                {searchingMusic && (
+                  <div style={{ textAlign: 'center', padding: '12px', color: '#ec4899', fontSize: '13px', fontWeight: 600 }}>
+                    🎵 Searching Tamil & global tracks...
+                  </div>
+                )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {musicTracks.length === 0 && !searchingMusic ? (
@@ -2518,6 +3261,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                 })
               )}
             </div>
+          </div>
+            )}
           </div>
         </div>
       )}

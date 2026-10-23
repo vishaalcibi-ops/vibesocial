@@ -17,18 +17,21 @@ import {
   ShieldAlert,
   Star,
   Eye,
+  Plus,
 } from 'lucide-react'
 import type { Profile, Post, Reel } from '../../types/database.types'
 import { profileService } from '../../services/profileService'
 import { postService } from '../../services/postService'
 import { reelService } from '../../services/reelService'
 import { recentViewsService } from '../../services/recentViewsService'
+import { highlightService, type StoryHighlight } from '../../services/highlightService'
 import { useAuth } from '../../context/AuthContext'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
 import { CloseFriendsModal } from './CloseFriendsModal'
 import { RecentViewsModal } from './RecentViewsModal'
 import { PostDetailModal } from '../feed/PostDetailModal'
+import { StoryViewerModal } from '../feed/StoryViewerModal'
 import { ReportModal } from '../common/ReportModal'
 
 interface ProfileViewProps {
@@ -65,6 +68,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [showCloseFriendsModal, setShowCloseFriendsModal] = useState(false)
   const [showRecentViewsModal, setShowRecentViewsModal] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // Story Highlights state
+  const [highlights, setHighlights] = useState<StoryHighlight[]>([])
+  const [activeHighlightStoryGroup, setActiveHighlightStoryGroup] = useState<any>(null)
+  const [showNewHighlightPrompt, setShowNewHighlightPrompt] = useState(false)
+  const [newHlTitleInput, setNewHlTitleInput] = useState('')
 
   const isMe = user?.id === userId
 
@@ -108,7 +117,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       setProfile(p)
 
-      const [statsRes, postsRes, reelsRes, followRes, requestRes, blockedRes, restrictedRes] = await Promise.all([
+      const [statsRes, postsRes, reelsRes, followRes, requestRes, blockedRes, restrictedRes, highlightsRes] = await Promise.all([
         profileService.getFollowStats(userId),
         postService.getProfilePosts(userId, user?.id),
         reelService.getUserReels(userId, user?.id),
@@ -116,6 +125,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         user && !isMe ? profileService.hasRequestedFollow(user.id, userId) : Promise.resolve(false),
         user && !isMe ? profileService.isUserBlocked(user.id, userId) : Promise.resolve(false),
         user && !isMe ? profileService.isUserRestricted(user.id, userId) : Promise.resolve(false),
+        highlightService.getUserHighlights(userId),
       ])
 
       setStats(statsRes)
@@ -125,6 +135,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setHasRequested(requestRes)
       setIsBlocked(blockedRes)
       setIsRestricted(restrictedRes)
+      setHighlights(highlightsRes)
 
       if (isMe && user) {
         const saved = await postService.getSavedPosts(user.id)
@@ -134,6 +145,36 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       console.error('Error loading profile:', e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleOpenHighlight = (hl: StoryHighlight) => {
+    if (!hl.stories || hl.stories.length === 0) {
+      showToast('No stories in this highlight yet! Tap "Highlight" (⭐) inside story viewer to add.')
+      return
+    }
+    setActiveHighlightStoryGroup({
+      authorId: userId,
+      author: profile || authProfile,
+      stories: hl.stories,
+    })
+  }
+
+  const handleCreateNewHighlightFromProfile = async () => {
+    if (!user || !newHlTitleInput.trim()) return
+    try {
+      const newHl = await highlightService.createHighlight(
+        user.id,
+        newHlTitleInput.trim(),
+        'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=300',
+        []
+      )
+      setHighlights((prev) => [newHl, ...prev])
+      showToast(`Created highlight: "${newHl.title}" ⭐`)
+      setShowNewHighlightPrompt(false)
+      setNewHlTitleInput('')
+    } catch {
+      showToast('Failed to create highlight.')
     }
   }
 
@@ -680,6 +721,109 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       ) : (
         <>
+          {/* Story Highlights Tray */}
+          <div
+            className="story-highlights-tray"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              overflowX: 'auto',
+              padding: '14px 20px',
+              borderTop: '1px solid var(--border-subtle)',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {/* If profile owner: "+ New" Highlight creation button */}
+            {isMe && (
+              <div
+                onClick={() => setShowNewHighlightPrompt(true)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    border: '1.5px dashed var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-primary)',
+                    background: 'var(--bg-elevated)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Create New Highlight"
+                >
+                  <Plus size={24} />
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  New
+                </span>
+              </div>
+            )}
+
+            {/* Existing Highlights */}
+            {highlights.map((hl) => (
+              <div
+                key={hl.id}
+                onClick={() => handleOpenHighlight(hl)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    padding: '2px',
+                    border: '2px solid #fbbf24',
+                    boxShadow: '0 2px 10px rgba(251, 191, 36, 0.25)',
+                    background: 'var(--bg-elevated)',
+                  }}
+                >
+                  <img
+                    src={hl.cover_url}
+                    alt={hl.title}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    maxWidth: '68px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
+                  }}
+                >
+                  {hl.title}
+                </span>
+              </div>
+            ))}
+          </div>
+
           {/* Tabs Row */}
           <div
         style={{
@@ -938,6 +1082,89 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             }
           }}
         />
+      )}
+
+      {/* Story Viewer for Highlights */}
+      {activeHighlightStoryGroup && (
+        <StoryViewerModal
+          storyGroup={activeHighlightStoryGroup}
+          onClose={() => setActiveHighlightStoryGroup(null)}
+        />
+      )}
+
+      {/* Create New Highlight Prompt Modal */}
+      {showNewHighlightPrompt && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowNewHighlightPrompt(false)}
+          style={{
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '340px',
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '24px',
+              padding: '20px',
+              boxShadow: 'var(--shadow-xl)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px', textAlign: 'center' }}>
+              New Highlight
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', margin: '0 0 16px' }}>
+              Give your highlight a title to showcase on your profile.
+            </p>
+            <input
+              type="text"
+              placeholder="e.g. Trips ✈️, Vibes, Memories"
+              value={newHlTitleInput}
+              onChange={(e) => setNewHlTitleInput(e.target.value)}
+              autoFocus
+              maxLength={25}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                outline: 'none',
+                marginBottom: '16px',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowNewHighlightPrompt(false)}
+                style={{ flex: 1, padding: '8px', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleCreateNewHighlightFromProfile}
+                disabled={!newHlTitleInput.trim()}
+                style={{ flex: 1, padding: '8px', fontSize: '13px' }}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

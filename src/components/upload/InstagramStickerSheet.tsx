@@ -16,6 +16,8 @@ import {
   Layers,
   Image as ImageIcon,
   Compass,
+  Sparkles,
+  Upload,
 } from 'lucide-react'
 import { profileService } from '../../services/profileService'
 import type { Profile } from '../../types/database.types'
@@ -52,13 +54,34 @@ const POPULAR_LOCATIONS = [
   'Madurai, India',
 ]
 
-const TRENDING_GIFS = [
-  { id: 'fire', label: '🔥 Fire', emoji: '🔥' },
-  { id: 'heart_sparkle', label: '💖 Love', emoji: '💖' },
-  { id: 'party', label: '🎉 Party', emoji: '🎉' },
-  { id: 'dance', label: '💃 Vibe', emoji: '💃' },
-  { id: 'star_burst', label: '✨ Sparkle', emoji: '✨' },
-  { id: 'crown', label: '👑 King/Queen', emoji: '👑' },
+export const TRENDING_ANIMATED_GIFS = [
+  { id: 'cat_vibe', label: '🐱 Cat Vibe', url: 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif' },
+  { id: 'party_popper', label: '🎉 Celebration', url: 'https://media.giphy.com/media/26tOZ42Mg6pbTUPHW/giphy.gif' },
+  { id: 'fire_dance', label: '🔥 Lit Fire', url: 'https://media.giphy.com/media/l41JGlWa1xYFUasOI/giphy.gif' },
+  { id: 'hype_dance', label: '🕺 Hype Dance', url: 'https://media.giphy.com/media/blSTtZehjAZ8I/giphy.gif' },
+  { id: 'heart_love', label: '💖 Love Blast', url: 'https://media.giphy.com/media/M90mJvfWfd5mbUuULX/giphy.gif' },
+  { id: 'popcorn', label: '🍿 Cinema Vibe', url: 'https://media.giphy.com/media/t3cL1iXeWHBxS/giphy.gif' },
+  { id: 'sparkles_neon', label: '✨ Sparkles', url: 'https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif' },
+  { id: 'laugh_tears', label: '😂 Laughing Out Loud', url: 'https://media.giphy.com/media/3oEjHAUOqG3lSS0f1C/giphy.gif' },
+  { id: 'good_vibes', label: '🌈 Good Vibes', url: 'https://media.giphy.com/media/3og0IPxMM0W22283fy/giphy.gif' },
+  { id: 'dj_sound', label: '🎧 DJ Music Beats', url: 'https://media.giphy.com/media/l4Ep3mmmj7Bw3adWw/giphy.gif' },
+  { id: 'cute_puppy', label: '🐶 Cheerful Pup', url: 'https://media.giphy.com/media/unQ3IJU2RG7DO/giphy.gif' },
+  { id: 'cool_boss', label: '🕶️ Cool Boss', url: 'https://media.giphy.com/media/xUPGczof2laMlAJaWk/giphy.gif' },
+]
+
+export const ANDROID_3D_ANIMATED_EMOJIS = [
+  { id: '3d_fire', label: '🔥 3D Flame', emoji: '🔥', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/512.gif' },
+  { id: '3d_hearteyes', label: '😍 3D Heart Eyes', emoji: '😍', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f60d/512.gif' },
+  { id: '3d_party', label: '🥳 3D Party Horn', emoji: '🥳', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f973/512.gif' },
+  { id: '3d_rocket', label: '🚀 3D Rocket', emoji: '🚀', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f680/512.gif' },
+  { id: '3d_100', label: '💯 3D Hundred', emoji: '💯', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f4af/512.gif' },
+  { id: '3d_sparkle_heart', label: '💖 3D Sparkling Heart', emoji: '💖', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f496/512.gif' },
+  { id: '3d_crown', label: '👑 3D Royal Crown', emoji: '👑', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f451/512.gif' },
+  { id: '3d_star_struck', label: '🤩 3D Star Struck', emoji: '🤩', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f929/512.gif' },
+  { id: '3d_rofl', label: '🤣 3D ROFL', emoji: '🤣', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f923/512.gif' },
+  { id: '3d_sunglasses', label: '😎 3D Cool Guy', emoji: '😎', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f60e/512.gif' },
+  { id: '3d_zap', label: '⚡ 3D High Voltage', emoji: '⚡', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/26a1/512.gif' },
+  { id: '3d_folded_hands', label: '🙏 3D Namaste', emoji: '🙏', url: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f64f/512.gif' },
 ]
 
 export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
@@ -70,22 +93,45 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [activeConfigType, setActiveConfigType] = useState<string | null>(null)
 
-  // Config Modal States
+  // Location search states
   const [locationInput, setLocationInput] = useState('')
+  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ name: string; full: string; lat?: string; lon?: string }>>([])
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false)
   const [detectingGps, setDetectingGps] = useState(false)
+  const [selectedLocationCoords, setSelectedLocationCoords] = useState<{ lat?: number; lon?: number } | null>(null)
+  const [locationStyle, setLocationStyle] = useState<'pill' | 'badge' | 'map'>('pill')
+
+  // Mention states
   const [mentionInput, setMentionInput] = useState('')
   const [mentionSuggestions, setMentionSuggestions] = useState<Profile[]>([])
   const [selectedMentionProfile, setSelectedMentionProfile] = useState<Profile | null>(null)
+
+  // Link states
   const [linkUrl, setLinkUrl] = useState('')
   const [linkTitle, setLinkTitle] = useState('')
+
+  // Poll states
   const [pollQuestion, setPollQuestion] = useState('')
   const [pollOpt1, setPollOpt1] = useState('YES')
   const [pollOpt2, setPollOpt2] = useState('NO')
+
+  // Slider states
   const [sliderPrompt, setSliderPrompt] = useState('Rate this ✨')
   const [sliderEmoji, setSliderEmoji] = useState('😍')
+
+  // Questions states
   const [questionPrompt, setQuestionPrompt] = useState('Ask me a question...')
+
+  // Add Yours states
   const [addYoursPrompt, setAddYoursPrompt] = useState('Drop your favorite photo 📸')
+  const [addYoursMediaType, setAddYoursMediaType] = useState<'photo' | 'music' | 'none'>('photo')
+  const [addYoursCustomImage, setAddYoursCustomImage] = useState<string | null>(null)
+  const [addYoursMusicTitle, setAddYoursMusicTitle] = useState('Naa Ready • Anirudh')
+
+  // Hashtag states
   const [hashtagInput, setHashtagInput] = useState('')
+
+  // Countdown states
   const [countdownTitle, setCountdownTitle] = useState('Weekend Celebration 🎉')
   const [countdownDate, setCountdownDate] = useState(() => {
     const d = new Date()
@@ -93,6 +139,60 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
     return d.toISOString().split('T')[0]
   })
   const [countdownTime, setCountdownTime] = useState('20:00')
+
+  // GIFs & 3D Emojis states
+  const [gifTab, setGifTab] = useState<'gifs' | '3d_emojis'>('gifs')
+  const [gifSearch, setGifSearch] = useState('')
+
+  // Frames Sticker states
+  const [frameInnerImage, setFrameInnerImage] = useState<string | null>(null)
+  const [frameStyle, setFrameStyle] = useState<'polaroid' | 'film' | 'retro' | 'neon'>('polaroid')
+  const [frameLabel, setFrameLabel] = useState('VIBE POLAROID')
+
+  // Cutouts states
+  const [cutoutImage, setCutoutImage] = useState<string | null>(null)
+  const [cutoutShape, setCutoutShape] = useState<'sticker' | 'circle' | 'heart' | 'star'>('sticker')
+
+  // Notify & Food Orders
+  const [notifyTitle, setNotifyTitle] = useState('New Drop Alert 🔔')
+  const [foodOrdersName, setFoodOrdersName] = useState('Order on Swiggy / Zomato 🍕')
+  const [foodOrdersUrl, setFoodOrdersUrl] = useState('https://swiggy.com')
+
+  // Real-time exact Nominatim location search
+  useEffect(() => {
+    if (!locationInput.trim() || locationInput.startsWith('📍')) {
+      setLocationSuggestions([])
+      return
+    }
+    const clean = locationInput.trim()
+    const timer = setTimeout(async () => {
+      setLocationSearchLoading(true)
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(clean)}&addressdetails=1&limit=6`
+        )
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          const suggestions = data.map((item: any) => {
+            const parts = (item.display_name || '').split(',')
+            const shortName = parts.slice(0, 2).join(',').trim()
+            return {
+              name: shortName || clean,
+              full: item.display_name,
+              lat: item.lat,
+              lon: item.lon,
+            }
+          })
+          setLocationSuggestions(suggestions)
+        }
+      } catch {
+        setLocationSuggestions([])
+      } finally {
+        setLocationSearchLoading(false)
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [locationInput])
 
   // Real-time mention search
   useEffect(() => {
@@ -144,11 +244,10 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
         setActiveConfigType('countdown')
         break
       case 'frames':
-        onSelectSticker({
-          type: 'frames',
-          data: { label: 'VIBE POLAROID', date: new Date().toLocaleDateString() },
-        })
-        onClose()
+        setActiveConfigType('frames')
+        break
+      case 'cutouts':
+        setActiveConfigType('cutouts')
         break
       case 'highlight':
         onSelectSticker({
@@ -157,33 +256,14 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
         })
         onClose()
         break
-      case 'cutouts':
-        onSelectSticker({
-          type: 'cutouts',
-          data: { label: 'CUTOUT STAMP' },
-        })
-        onClose()
-        break
       case 'notify':
-        onSelectSticker({
-          type: 'notify',
-          data: { label: 'NOTIFY ME 🔔' },
-        })
-        onClose()
+        setActiveConfigType('notify')
         break
       case 'avatar':
-        onSelectSticker({
-          type: 'emoji',
-          data: { emoji: '😎' },
-        })
-        onClose()
+        setActiveConfigType('avatar')
         break
       case 'food_orders':
-        onSelectSticker({
-          type: 'food_orders',
-          data: { label: 'ORDER FOOD 🍕' },
-        })
-        onClose()
+        setActiveConfigType('food_orders')
         break
       case 'gif':
         setActiveConfigType('gif')
@@ -198,17 +278,25 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
     if (!activeConfigType) return
 
     switch (activeConfigType) {
-      case 'location':
+      case 'location': {
+        const placeName = locationInput.trim().replace(/^📍\s*/, '') || 'Marina Beach, Chennai'
         onSelectSticker({
           type: 'location',
-          data: { name: locationInput.trim() || '📍 Marina Beach, Chennai' },
+          data: {
+            name: `📍 ${placeName}`,
+            rawName: placeName,
+            style: locationStyle,
+            lat: selectedLocationCoords?.lat,
+            lon: selectedLocationCoords?.lon,
+          },
         })
         break
+      }
       case 'mention':
         onSelectSticker({
           type: 'mention',
           data: {
-            username: (selectedMentionProfile?.username || mentionInput.trim().replace(/^@/, '') || 'friend'),
+            username: selectedMentionProfile?.username || mentionInput.trim().replace(/^@/, '') || 'friend',
             userId: selectedMentionProfile?.id,
             avatarUrl: selectedMentionProfile?.avatar_url,
           },
@@ -258,6 +346,30 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
           type: 'add_yours',
           data: {
             prompt: addYoursPrompt.trim() || 'Drop your favorite photo 📸',
+            mediaType: addYoursMediaType,
+            customImage: addYoursCustomImage,
+            musicTitle: addYoursMusicTitle,
+          },
+        })
+        break
+      case 'frames':
+        onSelectSticker({
+          type: 'frames',
+          data: {
+            innerImage: frameInnerImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
+            frameStyle,
+            label: frameLabel.trim() || 'VIBE POLAROID',
+            date: new Date().toLocaleDateString(),
+          },
+        })
+        break
+      case 'cutouts':
+        onSelectSticker({
+          type: 'cutouts',
+          data: {
+            imageUrl: cutoutImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
+            shape: cutoutShape,
+            label: 'CUTOUT STAMP',
           },
         })
         break
@@ -281,6 +393,24 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
         })
         break
       }
+      case 'notify':
+        onSelectSticker({
+          type: 'notify',
+          data: {
+            title: notifyTitle.trim() || 'Live Drop Alert 🔔',
+            subscribers: 0,
+          },
+        })
+        break
+      case 'food_orders':
+        onSelectSticker({
+          type: 'food_orders',
+          data: {
+            restaurantName: foodOrdersName.trim() || 'Order on Swiggy / Zomato 🍕',
+            orderUrl: foodOrdersUrl.trim() || 'https://swiggy.com',
+          },
+        })
+        break
     }
 
     setActiveConfigType(null)
@@ -298,13 +428,17 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
         try {
           const { latitude, longitude } = pos.coords
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
           )
           const data = await res.json()
-          const city = data.address?.city || data.address?.town || data.address?.county || 'Chennai'
-          const suburb = data.address?.suburb || data.address?.neighbourhood || data.address?.road
-          const locName = suburb ? `${suburb}, ${city}` : city
-          setLocationInput(`📍 ${locName}`)
+          const address = data.address || {}
+          const poi = address.amenity || address.tourism || address.building || address.road || ''
+          const neighborhood = address.suburb || address.neighbourhood || address.residential || ''
+          const city = address.city || address.town || address.village || address.county || 'Chennai'
+          const nameParts = [poi, neighborhood, city].filter(Boolean)
+          const shortName = nameParts.slice(0, 2).join(', ') || city
+          setLocationInput(`📍 ${shortName}`)
+          setSelectedLocationCoords({ lat: latitude, lon: longitude })
         } catch {
           setLocationInput('📍 Marina Beach, Chennai')
         } finally {
@@ -315,7 +449,7 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
         setLocationInput('📍 Marina Beach, Chennai')
         setDetectingGps(false)
       },
-      { timeout: 8000 }
+      { timeout: 10000, enableHighAccuracy: true }
     )
   }
 
@@ -326,9 +460,39 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
     reader.onload = () => {
       onSelectSticker({
         type: 'photo',
-        data: { url: reader.result as string },
+        data: { url: reader.result as string, mask: 'rounded' },
       })
       onClose()
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleFrameImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setFrameInnerImage(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleCutoutUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCutoutImage(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleAddYoursImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setAddYoursCustomImage(reader.result as string)
     }
     reader.readAsDataURL(file)
   }
@@ -338,6 +502,15 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
     if (!searchQuery.trim()) return true
     return name.toLowerCase().includes(searchQuery.toLowerCase())
   }
+
+  // Filtered GIFs
+  const filteredGifs = TRENDING_ANIMATED_GIFS.filter((g) =>
+    gifSearch.trim() ? g.label.toLowerCase().includes(gifSearch.toLowerCase()) : true
+  )
+
+  const filtered3dEmojis = ANDROID_3D_ANIMATED_EMOJIS.filter((e) =>
+    gifSearch.trim() ? e.label.toLowerCase().includes(gifSearch.toLowerCase()) : true
+  )
 
   return (
     <div
@@ -396,7 +569,7 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
           />
           <input
             type="text"
-            placeholder="Search"
+            placeholder="Search stickers, locations, gifs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
@@ -436,13 +609,7 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
           )}
         </div>
 
-        {/* Carousel Dots indicator */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: '14px' }}>
-          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'white' }} />
-          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.3)' }} />
-        </div>
-
-        {/* Instagram Authentic Sticker Pills Grid (Screenshot 1) */}
+        {/* Instagram Authentic Sticker Pills Grid */}
         <div
           style={{
             display: 'grid',
@@ -530,7 +697,7 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
             </button>
           )}
 
-          {/* GIF */}
+          {/* GIF & 3D EMOJI */}
           {matchesSearch('gif') && (
             <button
               type="button"
@@ -551,8 +718,8 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
               }}
             >
-              <Search size={17} color="#10b981" strokeWidth={2.5} />
-              <span>GIF</span>
+              <Sparkles size={17} color="#10b981" strokeWidth={2.5} />
+              <span>GIF / 3D</span>
             </button>
           )}
 
@@ -608,7 +775,7 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
             </button>
           )}
 
-          {/* PHOTO */}
+          {/* PHOTO (PIP) */}
           {matchesSearch('photo') && (
             <label
               style={{
@@ -631,32 +798,6 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
               <span>PHOTO</span>
               <input type="file" accept="image/*" onChange={handlePhotoSticker} style={{ display: 'none' }} />
             </label>
-          )}
-
-          {/* HIGHLIGHT */}
-          {matchesSearch('highlight') && (
-            <button
-              type="button"
-              onClick={() => handleStickerClick('highlight')}
-              style={{
-                background: '#ffffff',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '10px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                fontWeight: 800,
-                fontSize: '12px',
-                color: '#1c1c1e',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-              }}
-            >
-              <span style={{ fontSize: '15px' }}>💖</span>
-              <span>HIGHLIGHT</span>
-            </button>
           )}
 
           {/* CUTOUTS */}
@@ -955,7 +1096,7 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
           </div>
         </div>
 
-        {/* Your Stickers Section (Screenshot 1: "Your stickers") */}
+        {/* Your Stickers Section */}
         <div>
           <p style={{ fontSize: '13px', fontWeight: 600, color: '#8e8e93', margin: '0 0 10px 4px' }}>
             Your stickers
@@ -1003,26 +1144,35 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: '380px',
+              maxWidth: '420px',
+              width: '92%',
+              maxHeight: '85vh',
+              overflowY: 'auto',
               padding: '20px',
               backgroundColor: '#1c1c1e',
               borderRadius: '20px',
               color: 'white',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
             }}
           >
             <form onSubmit={handleConfigSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, fontSize: '16px' }}>
-                  {activeConfigType === 'location' && '📍 Add Location Sticker'}
+                  {activeConfigType === 'location' && '📍 Exact Location & Map Pin'}
                   {activeConfigType === 'mention' && '🌀 Mention User Sticker'}
                   {activeConfigType === 'link' && '🔗 Add Link Sticker'}
                   {activeConfigType === 'poll' && '📊 Create Poll'}
                   {activeConfigType === 'slider' && '😍 Emoji Slider'}
                   {activeConfigType === 'questions' && '💬 Ask Me a Question'}
-                  {activeConfigType === 'add_yours' && '🗂️ Add Yours Prompt'}
+                  {activeConfigType === 'add_yours' && '🗂️ Add Yours Collaborative Prompt'}
+                  {activeConfigType === 'frames' && '🖼️ Polaroid & Photo Frame Studio'}
+                  {activeConfigType === 'cutouts' && '✂️ Photo Cutouts & Stickers'}
                   {activeConfigType === 'hashtag' && '#️⃣ Add Hashtag'}
                   {activeConfigType === 'countdown' && '⏱️ Countdown Sticker'}
-                  {activeConfigType === 'gif' && '🔍 Trending Animated Stickers'}
+                  {activeConfigType === 'notify' && '🔔 Reminder Notification Sticker'}
+                  {activeConfigType === 'avatar' && '🧑‍🦱 3D Avatar Expressions'}
+                  {activeConfigType === 'food_orders' && '🍕 Food Order Button'}
+                  {activeConfigType === 'gif' && '🌟 Animated GIFs & 3D Emojis'}
                 </span>
                 <button
                   type="button"
@@ -1033,16 +1183,72 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                 </button>
               </div>
 
+              {/* LOCATION STICKER (Exact search + GPS + styles) */}
               {activeConfigType === 'location' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <input
-                    type="text"
-                    placeholder="Search or enter location..."
-                    value={locationInput}
-                    onChange={(e) => setLocationInput(e.target.value)}
-                    autoFocus
-                    style={{ width: '100%' }}
-                  />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      placeholder="Type exact street, landmark, beach, or city..."
+                      value={locationInput}
+                      onChange={(e) => setLocationInput(e.target.value)}
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: '#2c2c2e',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        color: 'white',
+                        fontSize: '14px',
+                      }}
+                    />
+                    {locationSearchLoading && (
+                      <span style={{ position: 'absolute', right: '12px', top: '10px', fontSize: '12px', color: '#8e8e93' }}>
+                        Searching...
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Real Search Suggestions Dropdown */}
+                  {locationSuggestions.length > 0 && (
+                    <div
+                      style={{
+                        background: '#2c2c2e',
+                        borderRadius: '12px',
+                        maxHeight: '160px',
+                        overflowY: 'auto',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                      }}
+                    >
+                      {locationSuggestions.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setLocationInput(`📍 ${item.name}`)
+                            setSelectedLocationCoords({ lat: Number(item.lat), lon: Number(item.lon) })
+                            setLocationSuggestions([])
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <MapPin size={14} color="#8b5cf6" />
+                          <div style={{ overflow: 'hidden' }}>
+                            <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'white' }}>{item.name}</p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#8e8e93', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.full}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* GPS Detection Button */}
                   <button
@@ -1050,11 +1256,11 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                     onClick={handleDetectLocation}
                     disabled={detectingGps}
                     style={{
-                      background: 'rgba(59, 130, 246, 0.2)',
-                      border: '1px solid rgba(59, 130, 246, 0.5)',
+                      background: 'rgba(139, 92, 246, 0.2)',
+                      border: '1px solid rgba(139, 92, 246, 0.5)',
                       borderRadius: '12px',
-                      padding: '8px 12px',
-                      color: '#60a5fa',
+                      padding: '10px 14px',
+                      color: '#c4b5fd',
                       fontSize: '13px',
                       fontWeight: 700,
                       display: 'flex',
@@ -1065,22 +1271,51 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                     }}
                   >
                     <Compass size={16} />
-                    <span>{detectingGps ? 'Pinpointing GPS location...' : '📍 Use My Current Location'}</span>
+                    <span>{detectingGps ? 'Pinpointing exact street GPS...' : '📍 Use High-Accuracy GPS'}</span>
                   </button>
+
+                  {/* Location Style Selector */}
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      Sticker Style
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                      {(['pill', 'badge', 'map'] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setLocationStyle(s)}
+                          style={{
+                            background: locationStyle === s ? 'rgba(236, 72, 153, 0.3)' : '#2c2c2e',
+                            border: locationStyle === s ? '1.5px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '10px',
+                            padding: '6px',
+                            color: 'white',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {s === 'pill' ? '📍 Gradient Pill' : s === 'badge' ? '🏷️ Street Badge' : '🗺️ Mini Map'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                   {/* Popular Location Chips */}
                   <div>
                     <span style={{ fontSize: '11px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                      Popular Locations
+                      Quick Popular Spots
                     </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       {POPULAR_LOCATIONS.map((loc) => (
                         <button
                           key={loc}
                           type="button"
-                          onClick={() => setLocationInput(loc)}
+                          onClick={() => setLocationInput(`📍 ${loc}`)}
                           style={{
-                            background: locationInput === loc ? '#ec4899' : 'rgba(255,255,255,0.1)',
+                            background: locationInput.includes(loc) ? '#ec4899' : 'rgba(255,255,255,0.1)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '16px',
@@ -1098,115 +1333,578 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                 </div>
               )}
 
+              {/* FRAMES STICKER STUDIO (Upload or pick image inside the frame) */}
+              {activeConfigType === 'frames' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      1. Photo to Put Inside Frame
+                    </label>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        background: 'rgba(236, 72, 153, 0.15)',
+                        border: '1.5px dashed #ec4899',
+                        borderRadius: '14px',
+                        padding: '16px',
+                        cursor: 'pointer',
+                        color: '#f472b6',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                      }}
+                    >
+                      <Upload size={18} />
+                      <span>{frameInnerImage ? 'Change Frame Photo' : 'Upload Photo for Frame'}</span>
+                      <input type="file" accept="image/*" onChange={handleFrameImageUpload} style={{ display: 'none' }} />
+                    </label>
+
+                    {frameInnerImage && (
+                      <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img
+                          src={frameInnerImage}
+                          alt="Inside frame preview"
+                          style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+                        />
+                        <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>✓ Custom photo selected</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Frame Style */}
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      2. Frame Style
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                      {(['polaroid', 'film', 'retro', 'neon'] as const).map((style) => (
+                        <button
+                          key={style}
+                          type="button"
+                          onClick={() => setFrameStyle(style)}
+                          style={{
+                            background: frameStyle === style ? 'rgba(236, 72, 153, 0.3)' : '#2c2c2e',
+                            border: frameStyle === style ? '1.5px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '10px',
+                            padding: '8px 4px',
+                            color: 'white',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Frame Caption */}
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      3. Frame Caption
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. VIBE POLAROID, Summer 2026..."
+                      value={frameLabel}
+                      onChange={(e) => setFrameLabel(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: '#2c2c2e',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        color: 'white',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* CUTOUTS STICKER STUDIO */}
+              {activeConfigType === 'cutouts' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1.5px dashed #10b981',
+                      borderRadius: '14px',
+                      padding: '16px',
+                      cursor: 'pointer',
+                      color: '#34d399',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                    }}
+                  >
+                    <Scissors size={18} />
+                    <span>{cutoutImage ? 'Change Cutout Photo' : 'Upload Photo to Create Cutout'}</span>
+                    <input type="file" accept="image/*" onChange={handleCutoutUpload} style={{ display: 'none' }} />
+                  </label>
+
+                  {cutoutImage && (
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                        Cutout Shape Style
+                      </span>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                        {(['sticker', 'circle', 'heart', 'star'] as const).map((shape) => (
+                          <button
+                            key={shape}
+                            type="button"
+                            onClick={() => setCutoutShape(shape)}
+                            style={{
+                              background: cutoutShape === shape ? 'rgba(16, 185, 129, 0.3)' : '#2c2c2e',
+                              border: cutoutShape === shape ? '1.5px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: '10px',
+                              padding: '8px 4px',
+                              color: 'white',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {shape === 'sticker' ? '🏷️ Outline' : shape === 'circle' ? '⚪ Circle' : shape === 'heart' ? '💖 Heart' : '⭐ Star'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ADD YOURS PROMPT */}
+              {activeConfigType === 'add_yours' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="Topic prompt (e.g. Drop your favorite photo 📸)"
+                    value={addYoursPrompt}
+                    onChange={(e) => setAddYoursPrompt(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: '#2c2c2e',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'white',
+                    }}
+                  />
+
+                  {/* Preset Quick Prompts */}
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      Popular Prompts
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {[
+                        'Drop your favorite photo 📸',
+                        'Share your favorite music 🎵',
+                        'Drop your pet 🐾',
+                        'Current Mood ✨',
+                        'OOTD Outfit 👗',
+                        'Sunset view 🌅',
+                      ].map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => setAddYoursPrompt(prompt)}
+                          style={{
+                            background: addYoursPrompt === prompt ? '#ec4899' : 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '14px',
+                            padding: '4px 10px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Collaborative Media: Photo or Music */}
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      Feature Your Favorite Image or Music
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                      {(['photo', 'music', 'none'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setAddYoursMediaType(type)}
+                          style={{
+                            padding: '8px',
+                            borderRadius: '10px',
+                            border: addYoursMediaType === type ? '1.5px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                            background: addYoursMediaType === type ? 'rgba(236, 72, 153, 0.25)' : '#2c2c2e',
+                            color: 'white',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {type === 'photo' ? '📸 Photo' : type === 'music' ? '🎵 Music' : 'None'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {addYoursMediaType === 'photo' && (
+                      <div>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            background: 'rgba(236, 72, 153, 0.15)',
+                            border: '1.5px dashed #ec4899',
+                            borderRadius: '12px',
+                            padding: '12px',
+                            cursor: 'pointer',
+                            color: '#f472b6',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                          }}
+                        >
+                          <Upload size={16} />
+                          <span>{addYoursCustomImage ? 'Change Favorite Photo' : 'Upload Favorite Photo'}</span>
+                          <input type="file" accept="image/*" onChange={handleAddYoursImageUpload} style={{ display: 'none' }} />
+                        </label>
+                        {addYoursCustomImage && (
+                          <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <img src={addYoursCustomImage} alt="Fav preview" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
+                            <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>✓ Attached</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {addYoursMediaType === 'music' && (
+                      <input
+                        type="text"
+                        placeholder="Song & Artist (e.g. Naa Ready • Anirudh)"
+                        value={addYoursMusicTitle}
+                        onChange={(e) => setAddYoursMusicTitle(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          background: '#2c2c2e',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          color: 'white',
+                          fontSize: '12px',
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SLIDER STICKER */}
+              {activeConfigType === 'slider' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="Rate prompt (e.g. Rate this ✨)"
+                    value={sliderPrompt}
+                    onChange={(e) => setSliderPrompt(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: '#2c2c2e',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'white',
+                    }}
+                  />
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#8e8e93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      Slider Emoji
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {['😍', '🔥', '😂', '❤️', '👏', '🥳', '💯', '✨', '🎸', '🌟'].map((em) => (
+                        <button
+                          key={em}
+                          type="button"
+                          onClick={() => setSliderEmoji(em)}
+                          style={{
+                            background: sliderEmoji === em ? 'rgba(236,72,153,0.3)' : '#2c2c2e',
+                            border: sliderEmoji === em ? '2px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '10px',
+                            padding: '8px 12px',
+                            fontSize: '20px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* QUESTIONS STICKER */}
+              {activeConfigType === 'questions' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="Question prompt (e.g. Ask me a question...)"
+                    value={questionPrompt}
+                    onChange={(e) => setQuestionPrompt(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: '#2c2c2e',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'white',
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* HASHTAG STICKER */}
+              {activeConfigType === 'hashtag' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="Hashtag (e.g. #vibes, #chennai)"
+                    value={hashtagInput}
+                    onChange={(e) => setHashtagInput(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: '#2c2c2e',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'white',
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* GIF & 3D ANIMATED EMOJIS */}
+              {activeConfigType === 'gif' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setGifTab('gifs')}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '10px',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: gifTab === 'gifs' ? '#ec4899' : '#2c2c2e',
+                        color: 'white',
+                      }}
+                    >
+                      🌟 Trending Animated GIFs ({TRENDING_ANIMATED_GIFS.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGifTab('3d_emojis')}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '10px',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: gifTab === '3d_emojis' ? '#8b5cf6' : '#2c2c2e',
+                        color: 'white',
+                      }}
+                    >
+                      🤖 Android 3D Emojis ({ANDROID_3D_ANIMATED_EMOJIS.length})
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Search animated stickers..."
+                    value={gifSearch}
+                    onChange={(e) => setGifSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: '#2c2c2e',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: 'white',
+                      fontSize: '13px',
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '8px',
+                      maxHeight: '260px',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {gifTab === 'gifs'
+                      ? filteredGifs.map((g) => (
+                          <div
+                            key={g.id}
+                            onClick={() => {
+                              onSelectSticker({
+                                type: 'gif',
+                                data: { url: g.url, label: g.label },
+                              })
+                              setActiveConfigType(null)
+                              onClose()
+                            }}
+                            style={{
+                              background: '#2c2c2e',
+                              borderRadius: '10px',
+                              padding: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                            }}
+                          >
+                            <img
+                              src={g.url}
+                              alt={g.label}
+                              style={{ width: '64px', height: '64px', objectFit: 'contain' }}
+                            />
+                            <span style={{ fontSize: '10px', color: '#e5e7eb', textAlign: 'center' }}>
+                              {g.label}
+                            </span>
+                          </div>
+                        ))
+                      : filtered3dEmojis.map((e) => (
+                          <div
+                            key={e.id}
+                            onClick={() => {
+                              onSelectSticker({
+                                type: 'gif',
+                                data: { url: e.url, label: e.label, is3dEmoji: true },
+                              })
+                              setActiveConfigType(null)
+                              onClose()
+                            }}
+                            style={{
+                              background: '#2c2c2e',
+                              borderRadius: '10px',
+                              padding: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                            }}
+                          >
+                            <img
+                              src={e.url}
+                              alt={e.label}
+                              style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+                            />
+                            <span style={{ fontSize: '10px', color: '#e5e7eb', textAlign: 'center' }}>
+                              {e.label}
+                            </span>
+                          </div>
+                        ))}
+                  </div>
+                </div>
+              )}
+
+              {/* MENTION */}
               {activeConfigType === 'mention' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <input
                     type="text"
-                    placeholder="Type starting letters (e.g. vi...)"
+                    placeholder="Type username..."
                     value={mentionInput}
                     onChange={(e) => {
                       setMentionInput(e.target.value)
                       setSelectedMentionProfile(null)
                     }}
                     autoFocus
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
-
-                  {/* Mention Autocomplete List */}
                   {mentionSuggestions.length > 0 && (
-                    <div
-                      style={{
-                        background: '#2c2c2e',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        maxHeight: '180px',
-                        overflowY: 'auto',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                      }}
-                    >
+                    <div style={{ background: '#2c2c2e', borderRadius: '12px', maxHeight: '160px', overflowY: 'auto' }}>
                       {mentionSuggestions.map((prof) => (
                         <div
                           key={prof.id}
                           onClick={() => {
                             setSelectedMentionProfile(prof)
                             setMentionInput(`@${prof.username}`)
-                            onSelectSticker({
-                              type: 'mention',
-                              data: {
-                                username: prof.username,
-                                userId: prof.id,
-                                avatarUrl: prof.avatar_url,
-                              },
-                            })
-                            setActiveConfigType(null)
-                            onClose()
                           }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '10px 12px',
-                            cursor: 'pointer',
-                            background: selectedMentionProfile?.id === prof.id ? 'rgba(236, 72, 153, 0.25)' : 'transparent',
-                            borderBottom: '1px solid rgba(255,255,255,0.06)',
-                            transition: 'background 0.15s ease',
-                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', cursor: 'pointer' }}
                         >
-                          <img
-                            src={prof.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
-                            alt={prof.username}
-                            style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                          <div>
-                            <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: 'white' }}>
-                              @{prof.username}
-                            </p>
-                            <p style={{ margin: 0, fontSize: '11px', color: '#8e8e93' }}>
-                              {prof.full_name}
-                            </p>
-                          </div>
+                          <img src={prof.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'} alt="Avatar" style={{ width: '30px', height: '30px', borderRadius: '50%' }} />
+                          <span style={{ fontSize: '13px', fontWeight: 600 }}>@{prof.username}</span>
                         </div>
                       ))}
-                    </div>
-                  )}
-
-                  {selectedMentionProfile && (
-                    <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      ✓ Selected: @{selectedMentionProfile.username} (DM notification will be sent)
                     </div>
                   )}
                 </div>
               )}
 
+              {/* LINK */}
               {activeConfigType === 'link' && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input
                     type="url"
                     placeholder="URL (e.g. https://vibesocial.app)"
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
                     autoFocus
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
                   <input
                     type="text"
-                    placeholder="Sticker text (optional, e.g. Visit Website)"
+                    placeholder="Sticker text (e.g. Visit Website)"
                     value={linkTitle}
                     onChange={(e) => setLinkTitle(e.target.value)}
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
-                </>
+                </div>
               )}
 
+              {/* POLL */}
               {activeConfigType === 'poll' && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input
                     type="text"
                     placeholder="Ask a question..."
                     value={pollQuestion}
                     onChange={(e) => setPollQuestion(e.target.value)}
                     autoFocus
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <input
@@ -1214,82 +1912,53 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                       placeholder="Option 1 (YES)"
                       value={pollOpt1}
                       onChange={(e) => setPollOpt1(e.target.value)}
+                      style={{ padding: '8px', borderRadius: '8px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                     />
                     <input
                       type="text"
                       placeholder="Option 2 (NO)"
                       value={pollOpt2}
                       onChange={(e) => setPollOpt2(e.target.value)}
+                      style={{ padding: '8px', borderRadius: '8px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                     />
                   </div>
-                </>
+                </div>
               )}
 
-              {activeConfigType === 'slider' && (
-                <>
+              {/* NOTIFY */}
+              {activeConfigType === 'notify' && (
+                <input
+                  type="text"
+                  placeholder="Event or Reminder title (e.g. Live Concert 🔔)"
+                  value={notifyTitle}
+                  onChange={(e) => setNotifyTitle(e.target.value)}
+                  autoFocus
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
+                />
+              )}
+
+              {/* FOOD ORDERS */}
+              {activeConfigType === 'food_orders' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input
                     type="text"
-                    placeholder="Rate this question..."
-                    value={sliderPrompt}
-                    onChange={(e) => setSliderPrompt(e.target.value)}
+                    placeholder="Button Text (e.g. Order on Swiggy / Zomato 🍕)"
+                    value={foodOrdersName}
+                    onChange={(e) => setFoodOrdersName(e.target.value)}
                     autoFocus
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {['😍', '🔥', '😂', '❤️', '🚀'].map((em) => (
-                      <button
-                        key={em}
-                        type="button"
-                        onClick={() => setSliderEmoji(em)}
-                        style={{
-                          background: sliderEmoji === em ? 'rgba(236, 72, 153, 0.3)' : 'rgba(255,255,255,0.1)',
-                          border: sliderEmoji === em ? '2px solid #ec4899' : 'none',
-                          borderRadius: '8px',
-                          padding: '8px',
-                          fontSize: '22px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {em}
-                      </button>
-                    ))}
-                  </div>
-                </>
+                  <input
+                    type="url"
+                    placeholder="Order URL (https://...)"
+                    value={foodOrdersUrl}
+                    onChange={(e) => setFoodOrdersUrl(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
+                  />
+                </div>
               )}
 
-              {activeConfigType === 'questions' && (
-                <input
-                  type="text"
-                  placeholder="Ask me a question..."
-                  value={questionPrompt}
-                  onChange={(e) => setQuestionPrompt(e.target.value)}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
-              )}
-
-              {activeConfigType === 'add_yours' && (
-                <input
-                  type="text"
-                  placeholder="Topic prompt (e.g. Drop your favorite view 🌅)"
-                  value={addYoursPrompt}
-                  onChange={(e) => setAddYoursPrompt(e.target.value)}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
-              )}
-
-              {activeConfigType === 'hashtag' && (
-                <input
-                  type="text"
-                  placeholder="#hashtag (e.g. #vibesocial)"
-                  value={hashtagInput}
-                  onChange={(e) => setHashtagInput(e.target.value)}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
-              )}
-
+              {/* COUNTDOWN */}
               {activeConfigType === 'countdown' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input
@@ -1298,117 +1967,70 @@ export const InstagramStickerSheet: React.FC<InstagramStickerSheetProps> = ({
                     value={countdownTitle}
                     onChange={(e) => setCountdownTitle(e.target.value)}
                     autoFocus
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
-
                   <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '8px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', color: '#8e8e93', display: 'block', marginBottom: '4px' }}>
-                        Target Date
-                      </label>
-                      <input
-                        type="date"
-                        value={countdownDate}
-                        onChange={(e) => setCountdownDate(e.target.value)}
-                        style={{ width: '100%', background: '#2c2c2e', color: 'white', border: 'none', borderRadius: '10px', padding: '8px' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '11px', color: '#8e8e93', display: 'block', marginBottom: '4px' }}>
-                        Target Time
-                      </label>
-                      <input
-                        type="time"
-                        value={countdownTime}
-                        onChange={(e) => setCountdownTime(e.target.value)}
-                        style={{ width: '100%', background: '#2c2c2e', color: 'white', border: 'none', borderRadius: '10px', padding: '8px' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Quick Presets */}
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7))
-                        setCountdownDate(d.toISOString().split('T')[0])
-                        setCountdownTime('20:00')
-                        setCountdownTitle('Weekend Celebration 🎉')
-                      }}
-                      style={{
-                        background: 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '12px',
-                        padding: '6px 10px',
-                        color: 'white',
-                        fontSize: '11px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Saturday 8 PM
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() + 1)
-                        setCountdownDate(d.toISOString().split('T')[0])
-                        setCountdownTime('19:00')
-                      }}
-                      style={{
-                        background: 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '12px',
-                        padding: '6px 10px',
-                        color: 'white',
-                        fontSize: '11px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Tomorrow 7 PM
-                    </button>
+                    <input
+                      type="date"
+                      value={countdownDate}
+                      onChange={(e) => setCountdownDate(e.target.value)}
+                      style={{ width: '100%', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px', padding: '8px' }}
+                    />
+                    <input
+                      type="time"
+                      value={countdownTime}
+                      onChange={(e) => setCountdownTime(e.target.value)}
+                      style={{ width: '100%', background: '#2c2c2e', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px', padding: '8px' }}
+                    />
                   </div>
                 </div>
               )}
 
-              {activeConfigType === 'gif' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                  {TRENDING_GIFS.map((g) => (
+              {/* AVATAR */}
+              {activeConfigType === 'avatar' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[
+                    { emoji: '👋', label: 'Wave' },
+                    { emoji: '😎', label: 'Cool' },
+                    { emoji: '🥳', label: 'Celebrate' },
+                    { emoji: '🤩', label: 'Star' },
+                    { emoji: '💃', label: 'Dance' },
+                    { emoji: '🔥', label: 'Fire' },
+                    { emoji: '💖', label: 'Love' },
+                    { emoji: '🚀', label: 'Rocket' },
+                  ].map((av, i) => (
                     <button
-                      key={g.id}
+                      key={i}
                       type="button"
                       onClick={() => {
                         onSelectSticker({
                           type: 'emoji',
-                          data: { emoji: g.emoji },
+                          data: { emoji: av.emoji },
                         })
                         setActiveConfigType(null)
                         onClose()
                       }}
                       style={{
-                        padding: '12px 8px',
-                        background: 'rgba(255,255,255,0.08)',
-                        border: '1px solid rgba(255,255,255,0.15)',
+                        padding: '12px 6px',
+                        background: '#2c2c2e',
+                        border: '1px solid rgba(255,255,255,0.1)',
                         borderRadius: '12px',
-                        color: 'white',
                         cursor: 'pointer',
-                        fontSize: '13px',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '6px',
+                        gap: '4px',
                       }}
                     >
-                      <span style={{ fontSize: '26px' }}>{g.emoji}</span>
-                      <span>{g.label}</span>
+                      <span style={{ fontSize: '26px' }}>{av.emoji}</span>
+                      <span style={{ fontSize: '11px', color: '#8e8e93' }}>{av.label}</span>
                     </button>
                   ))}
                 </div>
               )}
 
-              {activeConfigType !== 'gif' && (
+              {/* Submit Button for Modal */}
+              {activeConfigType !== 'gif' && activeConfigType !== 'avatar' && (
                 <button
                   type="submit"
                   style={{

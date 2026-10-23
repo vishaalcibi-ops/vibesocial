@@ -43,6 +43,8 @@ export interface BakeStoryOptions {
   effect?: string | null
   isAiLabeled?: boolean
   isPaidPartnership?: boolean
+  bgFitMode?: 'cover' | 'contain'
+  bgScale?: number
 }
 
 export async function bakeStoryCanvas(
@@ -76,6 +78,8 @@ export async function bakeStoryCanvas(
     effect: extraOptions?.effect || null,
     isAiLabeled: extraOptions?.isAiLabeled || false,
     isPaidPartnership: extraOptions?.isPaidPartnership || false,
+    bgFitMode: extraOptions?.bgFitMode || 'cover',
+    bgScale: extraOptions?.bgScale || 1.0,
   }
 
   return new Promise((resolve) => {
@@ -105,11 +109,23 @@ export async function bakeStoryCanvas(
         canvas.width = w
         canvas.height = h
 
-        // 1. Draw base image with filter
+        // 1. Draw base image with filter and background scaling
         if (options.filterCss && options.filterCss !== 'none') {
           ctx.filter = options.filterCss
         }
-        ctx.drawImage(img, 0, 0, w, h)
+
+        const scale = options.bgScale || 1.0
+        if (options.bgFitMode === 'contain' || scale !== 1.0) {
+          ctx.fillStyle = '#0a0a0c'
+          ctx.fillRect(0, 0, w, h)
+          const dw = w * scale
+          const dh = h * scale
+          const dx = (w - dw) / 2
+          const dy = (h - dh) / 2
+          ctx.drawImage(img, dx, dy, dw, dh)
+        } else {
+          ctx.drawImage(img, 0, 0, w, h)
+        }
         ctx.filter = 'none'
 
         // 2. Draw Effect Overlays (sparkles, grain, vhs)
@@ -564,10 +580,129 @@ function drawSticker(ctx: CanvasRenderingContext2D, st: StoryCanvasSticker, w: n
       ctx.fillStyle = '#1c1c1e'
       ctx.fillRect(x + 16, y + 16, frameW - 32, frameH - 64)
 
-      ctx.font = `bold ${Math.round(frameW * 0.05)}px "Brush Script MT", cursive, sans-serif`
+      // Inner photo placeholder text if image not drawn synchronously
+      ctx.fillStyle = '#ffffff'
+      ctx.font = `600 ${Math.round(frameW * 0.05)}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText('📷 Photo', 0, y + (frameH - 64) / 2)
+
+      ctx.font = `bold ${Math.round(frameW * 0.046)}px "Courier New", monospace`
       ctx.fillStyle = '#4b5563'
       ctx.textAlign = 'center'
       ctx.fillText(`${label} • ${date}`, 0, y + frameH - 22)
+      break
+    }
+
+    case 'music': {
+      const title = st.data?.title || 'Song'
+      const artist = st.data?.artist || 'Artist'
+      const cardW = Math.min(w * 0.82, 340)
+      const cardH = 76
+      const x = -cardW / 2
+      const y = -cardH / 2
+
+      ctx.fillStyle = 'rgba(28, 28, 30, 0.95)'
+      ctx.beginPath()
+      ctx.roundRect(x, y, cardW, cardH, 16)
+      ctx.fill()
+
+      ctx.fillStyle = '#ec4899'
+      ctx.beginPath()
+      ctx.roundRect(x + 12, y + 12, 52, 52, 10)
+      ctx.fill()
+
+      ctx.font = '24px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('🎵', x + 38, y + 38)
+
+      ctx.fillStyle = '#ffffff'
+      ctx.font = `bold ${Math.round(cardW * 0.045)}px sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(title, x + 74, y + 28)
+
+      ctx.fillStyle = '#9ca3af'
+      ctx.font = `500 ${Math.round(cardW * 0.038)}px sans-serif`
+      ctx.fillText(`${artist} • Spotify`, x + 74, y + 50)
+      break
+    }
+
+    case 'cutouts': {
+      const label = st.data?.label || 'CUTOUT'
+      const boxSize = Math.min(w * 0.45, 180)
+      const x = -boxSize / 2
+      const y = -boxSize / 2
+
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 6
+      ctx.beginPath()
+      ctx.roundRect(x, y, boxSize, boxSize, 18)
+      ctx.stroke()
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'
+      ctx.fill()
+
+      ctx.font = '36px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('✂️', 0, -12)
+      ctx.font = 'bold 12px sans-serif'
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(label, 0, boxSize / 2 - 16)
+      break
+    }
+
+    case 'notify': {
+      const title = st.data?.title || 'Live Alert 🔔'
+      const fontSize = Math.max(15, Math.round(w * 0.038))
+      ctx.font = `bold ${fontSize}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const metrics = ctx.measureText(title)
+      const pillW = metrics.width + fontSize * 2
+      const pillH = fontSize * 2.2
+      const x = -pillW / 2
+      const y = -pillH / 2
+
+      ctx.fillStyle = '#3b82f6'
+      ctx.beginPath()
+      ctx.roundRect(x, y, pillW, pillH, pillH / 2)
+      ctx.fill()
+
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(title, 0, 0)
+      break
+    }
+
+    case 'food_orders': {
+      const name = st.data?.restaurantName || 'Order Food 🍕'
+      const fontSize = Math.max(14, Math.round(w * 0.036))
+      ctx.font = `bold ${fontSize}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const metrics = ctx.measureText(name)
+      const pillW = metrics.width + fontSize * 2
+      const pillH = fontSize * 2.2
+      const x = -pillW / 2
+      const y = -pillH / 2
+
+      ctx.fillStyle = '#ef4444'
+      ctx.beginPath()
+      ctx.roundRect(x, y, pillW, pillH, pillH / 2)
+      ctx.fill()
+
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(name, 0, 0)
+      break
+    }
+
+    case 'gif': {
+      const label = st.data?.label || 'GIF'
+      const fontSize = Math.max(36, Math.round(w * 0.09))
+      ctx.font = `${fontSize}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label.split(' ')[0] || '✨', 0, 0)
       break
     }
 

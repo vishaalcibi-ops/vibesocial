@@ -137,6 +137,15 @@ export interface Story {
   is_liked_by_me?: boolean
 }
 
+export interface StoryHighlight {
+  id: string
+  user_id: string
+  title: string
+  cover_url: string
+  stories: Story[]
+  created_at: string
+}
+
 export interface StoryLike {
   story_id: string
   user_id: string
