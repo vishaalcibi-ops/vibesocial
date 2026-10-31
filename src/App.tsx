@@ -125,9 +125,23 @@ const VibeSocialApp: React.FC = () => {
 
     const unsubscribe = callService.listenForIncomingCalls(user.id, (call) => {
       setIncomingCall(call)
+      try {
+        if (typeof window !== 'undefined' && (window as any).AndroidCallBridge?.triggerIncomingCall) {
+          (window as any).AndroidCallBridge.triggerIncomingCall(
+            call.caller_name || 'Caller',
+            call.type || 'voice',
+            call.id
+          )
+        }
+      } catch {}
     })
 
     return () => {
+      try {
+        if (typeof window !== 'undefined' && (window as any).AndroidCallBridge?.cancelIncomingCall) {
+          (window as any).AndroidCallBridge.cancelIncomingCall()
+        }
+      } catch {}
       unsubscribe()
     }
   }, [user?.id])
@@ -624,10 +638,16 @@ const VibeSocialApp: React.FC = () => {
         <IncomingCallModal
           call={incomingCall}
           onAccept={(acceptedCall) => {
+            try {
+              (window as any).AndroidCallBridge?.cancelIncomingCall?.()
+            } catch {}
             setIncomingCall(null)
             setActiveAttendeeCall(acceptedCall)
           }}
           onDecline={() => {
+            try {
+              (window as any).AndroidCallBridge?.cancelIncomingCall?.()
+            } catch {}
             setIncomingCall(null)
           }}
         />
