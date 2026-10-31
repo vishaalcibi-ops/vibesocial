@@ -31,16 +31,7 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
-    { urls: 'stun:stun.relay.metered.ca:80' },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
+    { urls: 'stun:stun.cloudflare.com:3478' },
   ],
   iceCandidatePoolSize: 10,
 }
@@ -76,6 +67,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
 
   const localStreamRef = useRef<MediaStream | null>(null)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
@@ -241,37 +233,46 @@ export const CallModal: React.FC<CallModalProps> = ({
         // On Remote Stream (Combined HTML Media Element + Web Audio API for 100% volume guarantee)
         pc.ontrack = (event) => {
           if (isDisposed) return
-          let remoteStream = event.streams && event.streams[0]
-          if (!remoteStream) {
-            remoteStream = new MediaStream([event.track])
+
+          if (!remoteStreamRef.current) {
+            remoteStreamRef.current = new MediaStream()
           }
+
+          // Add track to persistent stream if not already present
+          const existingTracks = remoteStreamRef.current.getTracks()
+          if (!existingTracks.some((t) => t.id === event.track.id)) {
+            remoteStreamRef.current.addTrack(event.track)
+          }
+
           setHasRemoteStream(true)
 
           // 1. Video track attachment
           if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream
+            remoteVideoRef.current.srcObject = remoteStreamRef.current
             remoteVideoRef.current.play?.().catch(() => {})
           }
 
           // 2. Audio element attachment
           if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remoteStream
+            remoteAudioRef.current.srcObject = remoteStreamRef.current
             remoteAudioRef.current.play?.().catch(() => {})
           }
 
           // 3. Web Audio API direct PCM pipeline (bypasses browser autoplay / silent audio element bugs!)
-          try {
-            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-            if (AudioCtx) {
-              const audioCtx = new AudioCtx()
-              if (audioCtx.state === 'suspended') {
-                audioCtx.resume().catch(() => {})
+          if (event.track.kind === 'audio') {
+            try {
+              const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+              if (AudioCtx) {
+                const audioCtx = new AudioCtx()
+                if (audioCtx.state === 'suspended') {
+                  audioCtx.resume().catch(() => {})
+                }
+                const source = audioCtx.createMediaStreamSource(new MediaStream([event.track]))
+                source.connect(audioCtx.destination)
               }
-              const source = audioCtx.createMediaStreamSource(remoteStream)
-              source.connect(audioCtx.destination)
+            } catch (audioErr) {
+              console.warn('Web Audio direct stream routing warning:', audioErr)
             }
-          } catch (audioErr) {
-            console.warn('Web Audio direct stream routing warning:', audioErr)
           }
 
           // 4. Ensure Android speakerphone is turned on loud and clear
@@ -734,15 +735,19 @@ export const CallModal: React.FC<CallModalProps> = ({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                display: hasRemoteStream && callStatus === 'connected' ? 'block' : 'none',
-                zIndex: 1,
+                display: 'block',
+                zIndex: hasRemoteStream ? 5 : 0,
+                opacity: hasRemoteStream ? 1 : 0,
+                transition: 'opacity 0.25s ease-in-out',
               }}
             />
 
             {/* Waiting / Connecting / Avatar fallback */}
-            {(!hasRemoteStream || callStatus !== 'connected') && (
+            {!hasRemoteStream && (
               <div
                 style={{
+                  position: 'absolute',
+                  inset: 0,
                   width: '100%',
                   height: '100%',
                   display: 'flex',

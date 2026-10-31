@@ -390,7 +390,28 @@ export const callService = {
       unsubs.push(() => window.removeEventListener('storage', handleStorage))
     }
 
-    // 3. Conversation listener
+    // 3. Primary Root /calls collection doc listener for call updates (accepted, declined, ended)
+    if (callId && isFirebaseConfigured() && db) {
+      try {
+        const callDocRef = doc(db, 'calls', callId)
+        const unsubCallDoc = onSnapshot(
+          callDocRef,
+          (snap) => {
+            if (isDisposed) return
+            if (snap.exists()) {
+              const data = snap.data() as CallSession
+              notifyUpdate(data)
+            }
+          },
+          (err) => {
+            console.warn('listenToCall /calls snapshot error:', err)
+          }
+        )
+        unsubs.push(unsubCallDoc)
+      } catch {}
+    }
+
+    // 4. Secondary Conversation listener fallback
     const stored = this.getStoredCall(callId)
     const convId = conversationId || stored?.conversation_id
     if (convId && isFirebaseConfigured() && db) {
@@ -404,32 +425,12 @@ export const callService = {
               const data = snap.data()
               if (data.activeCall && data.activeCall.id === callId) {
                 notifyUpdate(data.activeCall as CallSession)
-              } else if (!data.activeCall && (stored?.status === 'accepted' || data.updatedAt)) {
-                notifyUpdate({ ...(stored || {} as any), id: callId, status: 'ended' })
               }
-            }
-          },
-          (err) => {
-            console.warn('listenToCall snapshot error:', err)
-          }
-        )
-        unsubs.push(unsubConv)
-      } catch {}
-      // 4. Dedicated Root /calls collection doc listener for call updates
-      try {
-        const callDocRef = doc(db, 'calls', callId)
-        const unsubCallDoc = onSnapshot(
-          callDocRef,
-          (snap) => {
-            if (isDisposed) return
-            if (snap.exists()) {
-              const data = snap.data() as CallSession
-              notifyUpdate(data)
             }
           },
           () => {}
         )
-        unsubs.push(unsubCallDoc)
+        unsubs.push(unsubConv)
       } catch {}
     }
 
@@ -704,10 +705,9 @@ export const callService = {
     }
     try {
       await setDoc(doc(db, 'calls', channelId), payload, { merge: true })
-    } catch {}
-    try {
-      await setDoc(doc(db, 'conversations', channelId), payload, { merge: true })
-    } catch {}
+    } catch (err) {
+      console.warn('sendWebRtcOffer error:', err)
+    }
   },
 
   /**
@@ -721,10 +721,9 @@ export const callService = {
     }
     try {
       await setDoc(doc(db, 'calls', channelId), payload, { merge: true })
-    } catch {}
-    try {
-      await setDoc(doc(db, 'conversations', channelId), payload, { merge: true })
-    } catch {}
+    } catch (err) {
+      console.warn('sendWebRtcAnswer error:', err)
+    }
   },
 
   /**
@@ -740,10 +739,9 @@ export const callService = {
     }
     try {
       await setDoc(doc(db, 'calls', channelId), payload, { merge: true })
-    } catch {}
-    try {
-      await setDoc(doc(db, 'conversations', channelId), payload, { merge: true })
-    } catch {}
+    } catch (err) {
+      console.warn('sendIceCandidate error:', err)
+    }
   },
 
   /**
@@ -751,36 +749,23 @@ export const callService = {
    */
   subscribeWebRtcSignals(channelId: string, onSignal: (data: any) => void): () => void {
     if (!channelId || !isFirebaseConfigured() || !db) return () => {}
-    let unsubs: (() => void)[] = []
 
-    // 1. Listen on /calls/{channelId}
     try {
       const callRef = doc(db, 'calls', channelId)
-      const unsubCall = onSnapshot(callRef, (snap) => {
-        if (snap.exists()) {
-          onSignal(snap.data())
+      const unsubCall = onSnapshot(
+        callRef,
+        (snap) => {
+          if (snap.exists()) {
+            onSignal(snap.data())
+          }
+        },
+        (err) => {
+          console.warn('subscribeWebRtcSignals snapshot notice:', err)
         }
-      })
-      unsubs.push(unsubCall)
-    } catch {}
-
-    // 2. Listen on /conversations/{channelId}
-    try {
-      const convRef = doc(db, 'conversations', channelId)
-      const unsubConv = onSnapshot(convRef, (snap) => {
-        if (snap.exists()) {
-          onSignal(snap.data())
-        }
-      })
-      unsubs.push(unsubConv)
-    } catch {}
-
-    return () => {
-      unsubs.forEach((u) => {
-        try {
-          u()
-        } catch {}
-      })
+      )
+      return unsubCall
+    } catch {
+      return () => {}
     }
   },
 
