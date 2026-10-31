@@ -80,12 +80,38 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   }
 
   useEffect(() => {
-    if (call) {
-      startIncomingRingtone()
-    } else {
+    if (!call) {
       stopIncomingRingtone()
+      return
     }
+
+    startIncomingRingtone()
+
+    // 1. Auto-timeout: Call expires after 35 seconds of ringing
+    const timeoutId = window.setTimeout(() => {
+      stopIncomingRingtone()
+      handleDecline()
+    }, 35000)
+
+    // 2. Real-time listener: If caller hangs up or cancels before answering, close modal immediately
+    const convId =
+      call.conversation_id ||
+      callService.getStableConversationId(call.caller_id, call.receiver_id)
+
+    const unsubscribe = callService.listenToCall(
+      call.id,
+      (updated) => {
+        if (updated.status === 'ended' || updated.status === 'declined') {
+          stopIncomingRingtone()
+          onDecline(call)
+        }
+      },
+      convId
+    )
+
     return () => {
+      clearTimeout(timeoutId)
+      unsubscribe()
       stopIncomingRingtone()
     }
   }, [call?.id])
@@ -94,10 +120,18 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
 
   const handleAccept = async () => {
     stopIncomingRingtone()
+    const convId =
+      call.conversation_id ||
+      callService.getStableConversationId(call.caller_id, call.receiver_id)
+    const callWithConv: CallSession = {
+      ...call,
+      conversation_id: convId,
+      status: 'accepted',
+    }
     try {
-      await callService.acceptCall(call.id, call)
+      await callService.acceptCall(call.id, callWithConv)
     } catch {}
-    onAccept(call)
+    onAccept(callWithConv)
   }
 
   const handleDecline = async () => {

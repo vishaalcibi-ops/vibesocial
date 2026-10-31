@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -481,6 +482,48 @@ export const messageServiceFirebase = {
       return conversations.reduce((acc, conv) => acc + (conv.unread_count || 0), 0)
     } catch {
       return 0
+    }
+  },
+
+  /**
+   * Unsend / Delete a message (Instagram unsend message for everyone)
+   */
+  async unsendMessage(conversationId: string, messageId: string, currentUserId: string): Promise<void> {
+    if (!isFirebaseConfigured() || !conversationId || !messageId) return
+
+    const currentUser = auth.currentUser
+    if (!currentUser || currentUser.uid !== currentUserId) {
+      throw new Error('User identity mismatch. Cannot unsend message.')
+    }
+
+    try {
+      const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId)
+      await deleteDoc(msgRef)
+
+      // Refresh the conversation's last message
+      try {
+        const messagesRef = collection(db, 'conversations', conversationId, 'messages')
+        const q = query(messagesRef, orderBy('createdAt', 'desc'), firestoreLimit(1))
+        const latestSnap = await getDocs(q)
+        const convRef = doc(db, 'conversations', conversationId)
+        if (!latestSnap.empty) {
+          const lastMsg = latestSnap.docs[0].data()
+          await updateDoc(convRef, {
+            lastMessageText: lastMsg.textContent || '',
+            lastMessageAt: lastMsg.createdAt || new Date().toISOString(),
+            lastMessageSenderId: lastMsg.senderId || '',
+          })
+        } else {
+          await updateDoc(convRef, {
+            lastMessageText: '',
+            lastMessageAt: new Date().toISOString(),
+            lastMessageSenderId: '',
+          })
+        }
+      } catch {}
+    } catch (err: any) {
+      console.error('Error unsending message:', err)
+      throw new Error(err.message || 'Failed to unsend message.')
     }
   },
 }

@@ -11,6 +11,9 @@ import {
   CheckCheck,
   Phone,
   Video,
+  Trash2,
+  Copy,
+  MoreHorizontal,
 } from 'lucide-react'
 import type { Conversation, Message, Profile } from '../../types/database.types'
 import { messageService } from '../../services/messageService'
@@ -44,7 +47,32 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const [searchingUsers, setSearchingUsers] = useState(false)
   const [activeCallTarget, setActiveCallTarget] = useState<Partial<Profile> | null>(null)
   const [activeCallMode, setActiveCallMode] = useState<'voice' | 'video'>('voice')
+  const [actionMenuMessage, setActionMenuMessage] = useState<Message | null>(null)
+  const [showUnsendConfirm, setShowUnsendConfirm] = useState(false)
+  const [isUnsending, setIsUnsending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+
+  const handleUnsendMessage = async () => {
+    if (!actionMenuMessage || !activeConvId || !user) return
+    const msgId = actionMenuMessage.id
+    setIsUnsending(true)
+    try {
+      setMessages((prev) => prev.filter((m) => m.id !== msgId))
+      await messageService.unsendMessage(activeConvId, msgId, user.id)
+    } catch (err) {
+      console.error('Failed to unsend message:', err)
+    } finally {
+      setIsUnsending(false)
+      setShowUnsendConfirm(false)
+      setActionMenuMessage(null)
+    }
+  }
+
+  const handleCopyMessage = () => {
+    if (!actionMenuMessage?.text_content) return
+    navigator.clipboard?.writeText(actionMenuMessage.text_content).catch(() => {})
+    setActionMenuMessage(null)
+  }
 
   // Track online/offline status
   useEffect(() => {
@@ -665,36 +693,88 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   return (
                     <div
                       key={msg.id}
-                      className={`message-bubble ${isMine ? 'mine' : 'theirs'}`}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: isMine ? 'flex-end' : 'flex-start',
+                        position: 'relative',
+                        marginBottom: '6px',
+                      }}
                     >
-                      <div>{msg.text_content}</div>
                       <div
                         style={{
-                          fontSize: '10px',
-                          opacity: 0.75,
-                          textAlign: 'right',
-                          marginTop: '4px',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'flex-end',
-                          gap: '4px',
+                          gap: '6px',
+                          flexDirection: isMine ? 'row' : 'row-reverse',
+                          maxWidth: '85%',
                         }}
                       >
-                        <span>
-                          {new Date(msg.created_at).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                        {isMine && (
-                          <span>
-                            {msg.is_read ? (
-                              <CheckCheck size={12} color="#93c5fd" />
-                            ) : (
-                              <Check size={12} />
+                        {/* More Action Trigger Button */}
+                        <button
+                          type="button"
+                          onClick={() => setActionMenuMessage(msg)}
+                          aria-label="Message options"
+                          title="Message options"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: 0.6,
+                            transition: 'opacity 0.2s',
+                          }}
+                        >
+                          <MoreHorizontal size={14} />
+                        </button>
+
+                        {/* Bubble */}
+                        <div
+                          className={`message-bubble ${isMine ? 'mine' : 'theirs'}`}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            setActionMenuMessage(msg)
+                          }}
+                          style={{
+                            margin: 0,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <div>{msg.text_content}</div>
+                          <div
+                            style={{
+                              fontSize: '10px',
+                              opacity: 0.75,
+                              textAlign: 'right',
+                              marginTop: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>
+                              {new Date(msg.created_at).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                            {isMine && (
+                              <span>
+                                {msg.is_read ? (
+                                  <CheckCheck size={12} color="#93c5fd" />
+                                ) : (
+                                  <Check size={12} />
+                                )}
+                              </span>
                             )}
-                          </span>
-                        )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )
@@ -902,6 +982,218 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           targetUser={activeCallTarget}
           initialMode={activeCallMode}
         />
+      )}
+
+      {/* Real Instagram Message Action Sheet */}
+      {actionMenuMessage && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setActionMenuMessage(null)}
+          style={{
+            zIndex: 1000,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: 0,
+            animation: 'fadeIn 0.15s ease-out',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              background: 'var(--bg-elevated, #262626)',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              padding: '20px 16px calc(env(safe-area-inset-bottom, 16px) + 20px)',
+              boxShadow: '0 -10px 40px rgba(0,0,0,0.8)',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            {/* Grab handle */}
+            <div
+              style={{
+                width: '36px',
+                height: '4px',
+                borderRadius: '2px',
+                background: 'rgba(255,255,255,0.3)',
+                margin: '0 auto 12px',
+              }}
+            />
+
+            {/* Message Preview snippet */}
+            <div
+              style={{
+                padding: '10px 14px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '12px',
+                fontSize: '13px',
+                color: 'var(--text-muted, #94a3b8)',
+                marginBottom: '8px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              &quot;{actionMenuMessage.text_content}&quot;
+            </div>
+
+            {/* Unsend Option (Only for messages sent by current user) */}
+            {actionMenuMessage.sender_id === user?.id && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnsendConfirm(true)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '14px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  color: '#ef4444',
+                  fontWeight: 700,
+                  fontSize: '15px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <Trash2 size={18} />
+                <span>Unsend</span>
+              </button>
+            )}
+
+            {/* Copy Text Option */}
+            <button
+              type="button"
+              onClick={handleCopyMessage}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: 'rgba(255,255,255,0.06)',
+                border: 'none',
+                color: 'var(--text-primary, #ffffff)',
+                fontWeight: 600,
+                fontSize: '15px',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <Copy size={18} />
+              <span>Copy text</span>
+            </button>
+
+            {/* Cancel Button */}
+            <button
+              type="button"
+              onClick={() => setActionMenuMessage(null)}
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted, #94a3b8)',
+                fontWeight: 600,
+                fontSize: '15px',
+                cursor: 'pointer',
+                textAlign: 'center',
+                marginTop: '4px',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Real Instagram Unsend Confirmation Modal */}
+      {showUnsendConfirm && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowUnsendConfirm(false)}
+          style={{
+            zIndex: 1001,
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '320px',
+              background: 'var(--bg-elevated, #262626)',
+              borderRadius: '24px',
+              padding: '24px 20px',
+              textAlign: 'center',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
+            }}
+          >
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary, #ffffff)', margin: '0 0 8px' }}>
+              Unsend message?
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted, #94a3b8)', margin: '0 0 20px', lineHeight: 1.4 }}>
+              Unsending will remove the message for everyone in the chat. People may have already seen it.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={handleUnsendMessage}
+                disabled={isUnsending}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  border: 'none',
+                  cursor: isUnsending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isUnsending ? 'Unsending...' : 'Unsend'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnsendConfirm(false)
+                  setActionMenuMessage(null)
+                }}
+                disabled={isUnsending}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'transparent',
+                  color: 'var(--text-primary, #ffffff)',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

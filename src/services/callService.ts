@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   setDoc,
+  updateDoc,
   deleteDoc,
   query,
   where,
@@ -184,6 +185,15 @@ export const callService = {
       if (call.receiver_id !== currentUserId) return
       if (receivedCallIds.has(call.id)) return
 
+      // Validate call freshness: Ignore any call initiated more than 40 seconds ago
+      if (call.created_at) {
+        const callTime = new Date(call.created_at).getTime()
+        const age = Date.now() - callTime
+        if (isNaN(callTime) || age > 40000 || age < -5000) {
+          return
+        }
+      }
+
       receivedCallIds.add(call.id)
       onIncoming(call)
     }
@@ -208,7 +218,7 @@ export const callService = {
       if (e.key === INCOMING_CALL_EVENT_KEY && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue)
-          if (parsed.call) {
+          if (parsed.call && parsed.timestamp && (Date.now() - parsed.timestamp < 40000)) {
             handleIncomingCall(parsed.call)
           }
         } catch {}
@@ -238,7 +248,15 @@ export const callService = {
                 data.activeCall.receiver_id === currentUserId &&
                 data.activeCall.status === 'ringing'
               ) {
-                handleIncomingCall(data.activeCall as CallSession)
+                const call = data.activeCall as CallSession
+                const callTime = call.created_at ? new Date(call.created_at).getTime() : 0
+                const age = Date.now() - callTime
+                if (callTime && age > 40000) {
+                  // Automatically clear dead/stale ringing call so it never auto-triggers
+                  updateDoc(docSnap.ref, { activeCall: null }).catch(() => {})
+                } else {
+                  handleIncomingCall(call)
+                }
               }
             })
           },

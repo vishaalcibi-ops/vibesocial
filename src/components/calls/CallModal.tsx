@@ -217,16 +217,18 @@ export const CallModal: React.FC<CallModalProps> = ({
         // On Remote Stream
         pc.ontrack = (event) => {
           if (isDisposed) return
-          const [remoteStream] = event.streams
-          if (remoteStream) {
-            setHasRemoteStream(true)
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream
-            }
-            if (remoteAudioRef.current) {
-              remoteAudioRef.current.srcObject = remoteStream
-              remoteAudioRef.current.play().catch(() => {})
-            }
+          let remoteStream = event.streams && event.streams[0]
+          if (!remoteStream) {
+            remoteStream = new MediaStream([event.track])
+          }
+          setHasRemoteStream(true)
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream
+            remoteVideoRef.current.play?.().catch(() => {})
+          }
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStream
+            remoteAudioRef.current.play?.().catch(() => {})
           }
         }
 
@@ -343,7 +345,7 @@ export const CallModal: React.FC<CallModalProps> = ({
 
       const convId =
         existingCallSession.conversation_id ||
-        [existingCallSession.caller_id, existingCallSession.receiver_id].sort().join('_')
+        callService.getStableConversationId(existingCallSession.caller_id, existingCallSession.receiver_id)
 
       // Start WebRTC as receiver
       initWebRTC(convId, false)
@@ -378,6 +380,14 @@ export const CallModal: React.FC<CallModalProps> = ({
         updated_at: new Date().toISOString(),
       }
 
+      // Outgoing call timeout (35 seconds if user does not answer)
+      const outgoingTimeout = window.setTimeout(() => {
+        if (isDisposed) return
+        stopOutgoingTone()
+        setCallStatus('declined')
+        setTimeout(() => onClose(), 1500)
+      }, 35000)
+
       callService
         .initiateCall({
           caller: currentProfile,
@@ -387,7 +397,9 @@ export const CallModal: React.FC<CallModalProps> = ({
         .then((session) => {
           if (isDisposed) return
           setActiveCallId(session.id)
-          const convId = session.conversation_id || [session.caller_id, session.receiver_id].sort().join('_')
+          const convId =
+            session.conversation_id ||
+            callService.getStableConversationId(session.caller_id, session.receiver_id)
           setCallStatus('ringing')
 
           // Start WebRTC as caller
@@ -399,14 +411,17 @@ export const CallModal: React.FC<CallModalProps> = ({
             (updated) => {
               if (isDisposed) return
               if (updated.status === 'accepted') {
+                clearTimeout(outgoingTimeout)
                 stopOutgoingTone()
                 setCallStatus('connected')
                 startTimer()
               } else if (updated.status === 'declined') {
+                clearTimeout(outgoingTimeout)
                 stopOutgoingTone()
                 setCallStatus('declined')
                 setTimeout(() => onClose(), 1500)
               } else if (updated.status === 'ended') {
+                clearTimeout(outgoingTimeout)
                 stopOutgoingTone()
                 setCallStatus('ended')
                 setTimeout(() => onClose(), 1200)
@@ -416,6 +431,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           )
         })
         .catch((err) => {
+          clearTimeout(outgoingTimeout)
           console.warn('Call initiate error:', err)
           setCallStatus('ringing')
         })

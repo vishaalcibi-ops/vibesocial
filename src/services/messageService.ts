@@ -288,4 +288,23 @@ export const messageService = {
     if (error) return 0
     return count || 0
   },
+
+  async unsendMessage(conversationId: string, messageId: string, currentUserId: string): Promise<void> {
+    if (getBackendProvider() === 'firebase') {
+      return messageServiceFirebase.unsendMessage(conversationId, messageId, currentUserId)
+    }
+
+    if (!isSupabaseConfigured()) return
+
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', messageId)
+      .eq('sender_id', currentUserId)
+
+    if (error) {
+      console.error('Error unsending message in supabase:', error)
+      throw error
+    }
+  },
 }

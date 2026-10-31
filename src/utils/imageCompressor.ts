@@ -16,7 +16,8 @@ export const compressImageFile = (
   initialQuality = 0.82
 ): Promise<CompressedImageResult> => {
   return new Promise((resolve, reject) => {
-    if (!file.type.startsWith('image/')) {
+    const isImageExtension = /\.(jpe?g|png|webp|gif|bmp|heic|svg)$/i.test(file.name || '')
+    if (file.type && !file.type.startsWith('image/') && !isImageExtension) {
       reject(new Error('Selected file must be an image (JPEG, PNG, WebP, etc.).'))
       return
     }

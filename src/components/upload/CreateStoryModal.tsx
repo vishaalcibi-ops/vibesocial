@@ -23,6 +23,9 @@ import {
   Search,
   Volume2,
   VolumeX,
+  Camera,
+  RefreshCw,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { storyService } from '../../services/storyService'
 import { useAuth } from '../../context/AuthContext'
@@ -207,6 +210,86 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
 
   const canvasContainerRef = useRef<HTMLDivElement | null>(null)
 
+  // Live Camera Viewfinder State
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false)
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user')
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null)
+  const cameraStreamRef = useRef<MediaStream | null>(null)
+
+  const startCameraStream = async (facing: 'user' | 'environment') => {
+    try {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((t) => t.stop())
+        cameraStreamRef.current = null
+      }
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing, width: { ideal: 1080 }, height: { ideal: 1920 } },
+          audio: false,
+        })
+        cameraStreamRef.current = stream
+        if (cameraVideoRef.current) {
+          cameraVideoRef.current.srcObject = stream
+          cameraVideoRef.current.play().catch(() => {})
+        }
+      }
+    } catch (err) {
+      console.warn('Camera error:', err)
+      setErrorMsg('Could not access camera. Please check camera permissions.')
+    }
+  }
+
+  const stopCameraStream = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop())
+      cameraStreamRef.current = null
+    }
+  }
+
+  const captureLivePhoto = () => {
+    if (!cameraVideoRef.current) return
+    const video = cameraVideoRef.current
+    const w = video.videoWidth || 1080
+    const h = video.videoHeight || 1920
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    if (cameraFacing === 'user') {
+      ctx.translate(w, 0)
+      ctx.scale(-1, 1)
+    }
+    ctx.drawImage(video, 0, 0, w, h)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+
+    stopCameraStream()
+    setUploadedDataUrl(dataUrl)
+    setUploadedFileName(`camera_${Date.now()}.jpg`)
+    setActiveTab('upload')
+    setIsLiveCameraOpen(false)
+    setToastMessage('📸 Photo captured!')
+    setTimeout(() => setToastMessage(null), 2000)
+  }
+
+  const toggleCameraFacing = () => {
+    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
+    setCameraFacing(nextFacing)
+    startCameraStream(nextFacing)
+  }
+
+  // Cleanup camera stream on close or unmount
+  useEffect(() => {
+    if (!isOpen) {
+      stopCameraStream()
+      setIsLiveCameraOpen(false)
+    }
+    return () => {
+      stopCameraStream()
+    }
+  }, [isOpen])
+
   // Handle Initial Options (Repost or Add Yours collaboration)
   useEffect(() => {
     if (isOpen && initialOptions) {
@@ -293,18 +376,22 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
   if (!isOpen) return null
 
   const activeMediaUrl =
-    activeTab === 'preset'
-      ? selectedPresetUrl
-      : activeTab === 'upload'
+    uploadedDataUrl
       ? uploadedDataUrl
-      : customUrl.trim()
+      : activeTab === 'preset'
+      ? selectedPresetUrl
+      : activeTab === 'url' && customUrl.trim()
+      ? customUrl.trim()
+      : selectedPresetUrl
 
   const activeMediaType =
-    activeTab === 'preset'
-      ? selectedPresetType
-      : activeTab === 'upload'
+    uploadedDataUrl
       ? 'image'
-      : customType
+      : activeTab === 'preset'
+      ? selectedPresetType
+      : activeTab === 'url'
+      ? customType
+      : selectedPresetType
 
   const currentFilterObj = INSTAGRAM_FILTERS.find((f) => f.id === selectedFilter) || INSTAGRAM_FILTERS[0]
 
@@ -314,7 +401,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!file.type.startsWith('image/')) {
+    const isImageExt = /\.(jpe?g|png|webp|gif|bmp|heic|svg)$/i.test(file.name || '')
+    if (file.type && !file.type.startsWith('image/') && !isImageExt) {
       setErrorMsg('Please select a photo file (JPEG, PNG, WebP).')
       return
     }
@@ -324,10 +412,15 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
       const result = await compressImageFile(file, 1080, 0.88)
       setUploadedDataUrl(result.dataUrl)
       setUploadedFileName(file.name)
+      setActiveTab('upload')
+      setShowMediaPicker(false)
+      setToastMessage('📸 Photo loaded successfully!')
+      setTimeout(() => setToastMessage(null), 2000)
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to process photo.')
     } finally {
       setCompressing(false)
+      if (e.target) e.target.value = ''
     }
   }
 
@@ -803,27 +896,56 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
             pointerEvents: isDrawMode ? 'none' : 'auto',
           }}
         >
-          {/* Back Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Discard Story"
-            style={{
-              background: 'rgba(0, 0, 0, 0.55)',
-              backdropFilter: 'blur(8px)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '40px',
-              height: '40px',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <ChevronLeft size={26} />
-          </button>
+          {/* Left Controls: Back + Live Camera */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Discard Story"
+              style={{
+                background: 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(8px)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <ChevronLeft size={26} />
+            </button>
+
+            {/* Live Camera Viewfinder Shutter Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsLiveCameraOpen(true)
+                startCameraStream(cameraFacing)
+              }}
+              aria-label="Open Live Camera"
+              title="Take Live Camera Photo"
+              style={{
+                background: 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(8px)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              <Camera size={20} />
+            </button>
+          </div>
 
           {/* Top Badges: Paid Partnership / Made with AI */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2749,37 +2871,67 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
 
             {/* Tab: Upload */}
             {activeTab === 'upload' && (
-              <label
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '30px 16px',
-                  border: '2px dashed rgba(255,255,255,0.25)',
-                  borderRadius: '16px',
-                  cursor: 'pointer',
-                  backgroundColor: 'rgba(255,255,255,0.05)',
-                }}
-              >
-                <Upload size={28} color="#ec4899" />
-                <span style={{ fontSize: '14px', fontWeight: 700 }}>
-                  {compressing ? 'Optimizing photo...' : 'Select Photo from Device'}
-                </span>
-                <span style={{ fontSize: '12px', color: '#8e8e93' }}>
-                  High-quality story image (JPEG, PNG, WebP)
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    handleFileUpload(e)
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Take Live Photo Button */}
+                <button
+                  type="button"
+                  onClick={() => {
                     setShowMediaPicker(false)
+                    setIsLiveCameraOpen(true)
+                    startCameraStream(cameraFacing)
                   }}
-                  style={{ display: 'none' }}
-                />
-              </label>
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    padding: '16px',
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    boxShadow: '0 6px 20px rgba(220, 39, 67, 0.4)',
+                  }}
+                >
+                  <Camera size={22} />
+                  <span>Open Live Camera & Take Photo</span>
+                </button>
+
+                {/* Upload from Device / Gallery */}
+                <label
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '24px 16px',
+                    border: '2px dashed rgba(255,255,255,0.3)',
+                    borderRadius: '16px',
+                    cursor: 'pointer',
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                  }}
+                >
+                  <Upload size={26} color="#ec4899" />
+                  <span style={{ fontSize: '14px', fontWeight: 700 }}>
+                    {compressing ? 'Optimizing photo...' : 'Choose Photo from Gallery'}
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#8e8e93' }}>
+                    Supports JPEG, PNG, WebP, HEIC
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      handleFileUpload(e)
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
             )}
 
             {/* Tab: Presets */}
@@ -3507,6 +3659,221 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         onSelectSticker={handleAddSticker}
         onOpenMusicPicker={() => setShowMusicPicker(true)}
       />
+
+      {/* FULL-SCREEN LIVE INSTAGRAM STORY CAMERA VIEW */}
+      {isLiveCameraOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: '#000000',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Top Camera Bar */}
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '430px',
+              padding: isMobile ? 'calc(env(safe-area-inset-top, 16px) + 12px) 16px 0' : '20px 20px 0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              zIndex: 10,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                stopCameraStream()
+                setIsLiveCameraOpen(false)
+              }}
+              style={{
+                background: 'rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(8px)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '42px',
+                height: '42px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={22} />
+            </button>
+
+            <span style={{ color: '#ffffff', fontWeight: 700, fontSize: '15px', textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}>
+              Story Camera
+            </span>
+
+            <button
+              type="button"
+              onClick={toggleCameraFacing}
+              style={{
+                background: 'rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(8px)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '42px',
+                height: '42px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+              title="Flip Camera"
+            >
+              <RefreshCw size={20} />
+            </button>
+          </div>
+
+          {/* Camera Viewfinder Video */}
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '430px',
+              flex: 1,
+              margin: '12px 0',
+              borderRadius: isMobile ? '0' : '28px',
+              overflow: 'hidden',
+              background: '#0d0d12',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <video
+              ref={cameraVideoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none',
+              }}
+            />
+          </div>
+
+          {/* Bottom Shutter & Gallery Bar */}
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '430px',
+              padding: isMobile ? '0 28px calc(env(safe-area-inset-bottom, 20px) + 24px)' : '0 28px 32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-around',
+              zIndex: 10,
+            }}
+          >
+            {/* Gallery Upload / Pick button */}
+            <label
+              style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '16px',
+                background: 'rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(10px)',
+                border: '2px solid rgba(255,255,255,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'white',
+              }}
+              title="Pick Photo from Gallery"
+            >
+              <ImageIcon size={24} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  stopCameraStream()
+                  setIsLiveCameraOpen(false)
+                  handleFileUpload(e)
+                }}
+                style={{ display: 'none' }}
+              />
+            </label>
+
+            {/* Circular Instagram Shutter Button */}
+            <button
+              type="button"
+              onClick={captureLivePhoto}
+              aria-label="Capture Photo"
+              style={{
+                width: '84px',
+                height: '84px',
+                borderRadius: '50%',
+                background: 'transparent',
+                border: '4px solid #ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: '4px',
+                transition: 'transform 0.1s ease',
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = 'scale(0.92)'
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+              onTouchStart={(e) => {
+                e.currentTarget.style.transform = 'scale(0.92)'
+              }}
+              onTouchEnd={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  boxShadow: '0 0 16px rgba(255,255,255,0.6)',
+                }}
+              />
+            </button>
+
+            {/* Flip Camera Button */}
+            <button
+              type="button"
+              onClick={toggleCameraFacing}
+              style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                cursor: 'pointer',
+              }}
+              title="Flip Camera"
+            >
+              <RefreshCw size={22} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
