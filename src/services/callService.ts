@@ -125,6 +125,7 @@ export const callService = {
           convRef,
           {
             memberIds: [caller.id, receiver.id],
+            participantIds: [caller.id, receiver.id],
             is_group: false,
             activeCall: newCall,
             updatedAt: timestamp,
@@ -147,7 +148,13 @@ export const callService = {
         console.warn('Conversation calling channel notice:', convErr)
       }
 
-      // Secondary Channel: Notifications subcollection
+      // Secondary Channel: Dedicated Root /calls collection
+      try {
+        const directCallRef = doc(db, 'calls', callId)
+        await setDoc(directCallRef, newCall)
+      } catch {}
+
+      // Tertiary Channel: Notifications subcollection
       try {
         const notifRef = doc(db, 'users', receiver.id, 'notifications', `incoming_call_${callId}`)
         await setDoc(notifRef, {
@@ -294,6 +301,32 @@ export const callService = {
         )
         unsubs.push(unsubNotifs)
       } catch {}
+      // 5. Dedicated Root /calls collection query for incoming calls
+      try {
+        const callsQuery = query(
+          collection(db, 'calls'),
+          where('receiver_id', '==', currentUserId),
+          where('status', '==', 'ringing')
+        )
+        const unsubCalls = onSnapshot(
+          callsQuery,
+          (snapshot) => {
+            if (isDisposed) return
+            snapshot.docs.forEach((docSnap) => {
+              const call = docSnap.data() as CallSession
+              const callTime = call.created_at ? new Date(call.created_at).getTime() : 0
+              const age = Date.now() - callTime
+              if (callTime && age > 40000) {
+                updateDoc(docSnap.ref, { status: 'ended' }).catch(() => {})
+              } else {
+                handleIncomingCall(call)
+              }
+            })
+          },
+          () => {}
+        )
+        unsubs.push(unsubCalls)
+      } catch {}
     }
 
     return () => {
@@ -380,6 +413,22 @@ export const callService = {
           }
         )
         unsubs.push(unsubConv)
+      } catch {}
+      // 4. Dedicated Root /calls collection doc listener for call updates
+      try {
+        const callDocRef = doc(db, 'calls', callId)
+        const unsubCallDoc = onSnapshot(
+          callDocRef,
+          (snap) => {
+            if (isDisposed) return
+            if (snap.exists()) {
+              const data = snap.data() as CallSession
+              notifyUpdate(data)
+            }
+          },
+          () => {}
+        )
+        unsubs.push(unsubCallDoc)
       } catch {}
     }
 

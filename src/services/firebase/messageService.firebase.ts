@@ -279,16 +279,34 @@ export const messageServiceFirebase = {
     senderId,
     textContent,
     file,
+    mediaUrl,
+    mediaType,
   }: {
     conversationId: string
     senderId: string
     textContent: string
     file?: File
+    mediaUrl?: string | null
+    mediaType?: 'image' | 'video' | null
   }): Promise<Message> {
     if (!isFirebaseConfigured()) throw new Error('Firebase is not configured.')
 
+    let finalMediaUrl = mediaUrl || null
+    let finalMediaType = mediaType || null
+
+    if (file) {
+      try {
+        const { compressImageFile } = await import('../../utils/imageCompressor')
+        const compressed = await compressImageFile(file, 900, 0.82)
+        finalMediaUrl = compressed.dataUrl
+        finalMediaType = 'image'
+      } catch (fileErr) {
+        console.warn('Image compression warning in chat:', fileErr)
+      }
+    }
+
     const cleanText = textContent ? textContent.trim() : ''
-    if (!cleanText && !file) {
+    if (!cleanText && !finalMediaUrl) {
       throw new Error('Message cannot be empty.')
     }
     if (cleanText.length > 1000) {
@@ -300,11 +318,6 @@ export const messageServiceFirebase = {
       throw new Error('Sender identity mismatch. Please sign in.')
     }
 
-    // Spark free plan check: binary file uploads to Storage are disabled
-    if (file) {
-      console.warn('Direct media attachments in messages are disabled on Spark free tier.')
-    }
-
     const messagesRef = collection(db, 'conversations', conversationId, 'messages')
     const messageDocRef = doc(messagesRef)
     const timestamp = new Date().toISOString()
@@ -314,8 +327,8 @@ export const messageServiceFirebase = {
       conversationId,
       senderId: currentUser.uid,
       textContent: cleanText,
-      mediaUrl: null,
-      mediaType: null,
+      mediaUrl: finalMediaUrl,
+      mediaType: finalMediaType,
       is_read: false,
       createdAt: timestamp,
     }
@@ -328,7 +341,7 @@ export const messageServiceFirebase = {
       const convRef = doc(db, 'conversations', conversationId)
       await updateDoc(convRef, {
         updatedAt: timestamp,
-        lastMessageText: cleanText,
+        lastMessageText: cleanText || (finalMediaType === 'image' ? '📷 Photo' : ''),
         lastMessageAt: timestamp,
         lastMessageSenderId: currentUser.uid,
       })
@@ -358,8 +371,8 @@ export const messageServiceFirebase = {
       conversation_id: conversationId,
       sender_id: currentUser.uid,
       text_content: cleanText,
-      media_url: null,
-      media_type: null,
+      media_url: finalMediaUrl,
+      media_type: finalMediaType,
       is_read: false,
       created_at: timestamp,
     }

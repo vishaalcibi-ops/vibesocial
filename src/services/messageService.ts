@@ -148,20 +148,24 @@ export const messageService = {
     senderId,
     textContent,
     file,
+    mediaUrl,
+    mediaType,
   }: {
     conversationId: string
     senderId: string
     textContent: string
     file?: File
+    mediaUrl?: string | null
+    mediaType?: 'image' | 'video' | null
   }): Promise<Message> {
     if (getBackendProvider() === 'firebase') {
-      return messageServiceFirebase.sendMessage({ conversationId, senderId, textContent, file })
+      return messageServiceFirebase.sendMessage({ conversationId, senderId, textContent, file, mediaUrl, mediaType })
     }
 
     if (!isSupabaseConfigured()) throw new Error('Supabase is not configured.')
 
-    let mediaUrl: string | null = null
-    let mediaType: string | null = null
+    let finalMediaUrl: string | null = mediaUrl || null
+    let finalMediaType: string | null = mediaType || null
 
     if (file) {
       const ext = file.name.split('.').pop()
@@ -174,8 +178,8 @@ export const messageService = {
       if (uploadError) throw uploadError
 
       const { data: urlData } = supabase.storage.from('messages').getPublicUrl(storagePath)
-      mediaUrl = urlData.publicUrl
-      mediaType = file.type.startsWith('video/') ? 'video' : 'image'
+      finalMediaUrl = urlData.publicUrl
+      finalMediaType = file.type.startsWith('video/') ? 'video' : 'image'
     }
 
     const { data, error } = await supabase
@@ -184,8 +188,8 @@ export const messageService = {
         conversation_id: conversationId,
         sender_id: senderId,
         text_content: textContent.trim(),
-        media_url: mediaUrl,
-        media_type: mediaType,
+        media_url: finalMediaUrl,
+        media_type: finalMediaType,
       })
       .select(`
         *,

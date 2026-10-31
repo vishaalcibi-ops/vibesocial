@@ -14,6 +14,7 @@ import {
   Trash2,
   Copy,
   MoreHorizontal,
+  Image as ImageIcon,
 } from 'lucide-react'
 import type { Conversation, Message, Profile } from '../../types/database.types'
 import { messageService } from '../../services/messageService'
@@ -273,6 +274,47 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       setErrorMessage(e.message || 'Failed to send message. Please try again.')
     } finally {
       setSending(false)
+    }
+  }
+
+  // Send photo in chat
+  const handleSendPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !activeConvId || !user) return
+
+    setSending(true)
+    setErrorMessage(null)
+
+    try {
+      const sentMsg = await messageService.sendMessage({
+        conversationId: activeConvId,
+        senderId: user.id,
+        textContent: '',
+        file,
+      })
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === sentMsg.id)) return prev
+        return [...prev, sentMsg]
+      })
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConvId
+            ? {
+                ...c,
+                last_message: sentMsg,
+                updated_at: sentMsg.created_at,
+              }
+            : c
+        )
+      )
+    } catch (e: any) {
+      console.error('Failed to send photo:', e)
+      setErrorMessage(e.message || 'Failed to send photo. Please try again.')
+    } finally {
+      setSending(false)
+      if (e.target) e.target.value = ''
     }
   }
 
@@ -745,7 +787,34 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             cursor: 'pointer',
                           }}
                         >
-                          <div>{msg.text_content}</div>
+                          {msg.media_url && (
+                            <div
+                              style={{
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                                marginBottom: msg.text_content ? '6px' : '0',
+                                maxWidth: '280px',
+                              }}
+                            >
+                              <img
+                                src={msg.media_url}
+                                alt="Shared photo"
+                                style={{
+                                  width: '100%',
+                                  maxHeight: '300px',
+                                  objectFit: 'cover',
+                                  display: 'block',
+                                  borderRadius: '12px',
+                                  cursor: 'pointer',
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  window.open(msg.media_url || '', '_blank')
+                                }}
+                              />
+                            </div>
+                          )}
+                          {msg.text_content ? <div>{msg.text_content}</div> : null}
                           <div
                             style={{
                               fontSize: '10px',
@@ -830,6 +899,30 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   {inputText.length}/1000
                 </span>
               )}
+
+              {/* Photo Picker Button */}
+              <label
+                style={{
+                  cursor: sending ? 'not-allowed' : 'pointer',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '4px',
+                  borderRadius: '50%',
+                  opacity: sending ? 0.4 : 0.8,
+                  transition: 'opacity 0.2s',
+                }}
+                title="Send a photo"
+              >
+                <ImageIcon size={20} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSendPhoto}
+                  disabled={sending}
+                  style={{ display: 'none' }}
+                />
+              </label>
 
               <button
                 type="submit"

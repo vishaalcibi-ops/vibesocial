@@ -205,8 +205,10 @@ export const profileServiceFirebase = {
     return updatedData as Profile
   },
 
-  async uploadAvatar(_userId: string, _file: File): Promise<string> {
-    throw new Error('Firebase Storage is disabled on the Spark free plan. Direct binary avatar uploads are not allowed.')
+  async uploadAvatar(_userId: string, file: File): Promise<string> {
+    const { compressImageFile } = await import('../../utils/imageCompressor')
+    const result = await compressImageFile(file, 400, 0.82)
+    return result.dataUrl
   },
 
   async getFollowStats(userId: string): Promise<{ followers: number; following: number }> {

@@ -223,19 +223,34 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         cameraStreamRef.current = null
       }
       if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facing, width: { ideal: 1080 }, height: { ideal: 1920 } },
-          audio: false,
-        })
-        cameraStreamRef.current = stream
-        if (cameraVideoRef.current) {
-          cameraVideoRef.current.srcObject = stream
-          cameraVideoRef.current.play().catch(() => {})
+        let stream: MediaStream | null = null
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing },
+            audio: false,
+          })
+        } catch {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            })
+          } catch (innerErr) {
+            throw innerErr
+          }
+        }
+
+        if (stream) {
+          cameraStreamRef.current = stream
+          if (cameraVideoRef.current) {
+            cameraVideoRef.current.srcObject = stream
+            cameraVideoRef.current.play().catch(() => {})
+          }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Camera error:', err)
-      setErrorMsg('Could not access camera. Please check camera permissions.')
+      setErrorMsg('Could not access camera. Please check camera permissions in app settings.')
     }
   }
 
