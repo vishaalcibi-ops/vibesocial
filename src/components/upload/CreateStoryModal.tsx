@@ -216,50 +216,67 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
 
-  const startCameraStream = async (facing: 'user' | 'environment') => {
-    try {
-      if (cameraStreamRef.current) {
-        cameraStreamRef.current.getTracks().forEach((t) => t.stop())
-        cameraStreamRef.current = null
-      }
-      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        let stream: MediaStream | null = null
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facing },
-            audio: false,
-          })
-        } catch {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: false,
-            })
-          } catch (innerErr) {
-            throw innerErr
-          }
-        }
-
-        if (stream) {
-          cameraStreamRef.current = stream
-          if (cameraVideoRef.current) {
-            cameraVideoRef.current.srcObject = stream
-            cameraVideoRef.current.play().catch(() => {})
-          }
-        }
-      }
-    } catch (err: any) {
-      console.warn('Camera error:', err)
-      setErrorMsg('Could not access camera. Please check camera permissions in app settings.')
-    }
-  }
-
   const stopCameraStream = () => {
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach((t) => t.stop())
       cameraStreamRef.current = null
     }
   }
+
+  // Active Live Camera Stream Hook
+  useEffect(() => {
+    let isMounted = true
+
+    if (isLiveCameraOpen) {
+      const initCamera = async () => {
+        try {
+          if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach((t) => t.stop())
+            cameraStreamRef.current = null
+          }
+          if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+            let stream: MediaStream | null = null
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: cameraFacing },
+                audio: false,
+              })
+            } catch {
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: true,
+                  audio: false,
+                })
+              } catch (innerErr) {
+                throw innerErr
+              }
+            }
+
+            if (isMounted && stream) {
+              cameraStreamRef.current = stream
+              if (cameraVideoRef.current) {
+                cameraVideoRef.current.srcObject = stream
+                cameraVideoRef.current.setAttribute('playsinline', 'true')
+                cameraVideoRef.current.setAttribute('webkit-playsinline', 'true')
+                cameraVideoRef.current.play().catch(() => {})
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('Camera error:', err)
+          setErrorMsg('Could not access camera. Please check camera permissions in app settings.')
+        }
+      }
+
+      initCamera()
+    } else {
+      stopCameraStream()
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [isLiveCameraOpen, cameraFacing])
 
   const captureLivePhoto = () => {
     if (!cameraVideoRef.current) return
@@ -289,9 +306,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
   }
 
   const toggleCameraFacing = () => {
-    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
-    setCameraFacing(nextFacing)
-    startCameraStream(nextFacing)
+    setCameraFacing((prev) => (prev === 'user' ? 'environment' : 'user'))
   }
 
   // Cleanup camera stream on close or unmount
@@ -939,7 +954,6 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               type="button"
               onClick={() => {
                 setIsLiveCameraOpen(true)
-                startCameraStream(cameraFacing)
               }}
               aria-label="Open Live Camera"
               title="Take Live Camera Photo"
@@ -2893,7 +2907,6 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                   onClick={() => {
                     setShowMediaPicker(false)
                     setIsLiveCameraOpen(true)
-                    startCameraStream(cameraFacing)
                   }}
                   style={{
                     display: 'flex',
@@ -3678,6 +3691,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
       {/* FULL-SCREEN LIVE INSTAGRAM STORY CAMERA VIEW */}
       {isLiveCameraOpen && (
         <div
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
             inset: 0,

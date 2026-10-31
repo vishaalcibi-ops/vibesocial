@@ -254,8 +254,8 @@ export const messageServiceFirebase = {
           conversation_id: conversationId,
           sender_id: data.senderId,
           text_content: data.textContent || '',
-          media_url: data.mediaUrl || null,
-          media_type: data.mediaType || null,
+          media_url: data.media_url || data.mediaUrl || null,
+          media_type: data.media_type || data.mediaType || null,
           is_read: Boolean(data.is_read),
           created_at: data.createdAt || new Date().toISOString(),
         }
@@ -328,7 +328,9 @@ export const messageServiceFirebase = {
       senderId: currentUser.uid,
       textContent: cleanText,
       mediaUrl: finalMediaUrl,
+      media_url: finalMediaUrl,
       mediaType: finalMediaType,
+      media_type: finalMediaType,
       is_read: false,
       createdAt: timestamp,
     }
@@ -436,8 +438,8 @@ export const messageServiceFirebase = {
               conversation_id: conversationId,
               sender_id: data.senderId,
               text_content: data.textContent || '',
-              media_url: data.mediaUrl || null,
-              media_type: data.mediaType || null,
+              media_url: data.media_url || data.mediaUrl || null,
+              media_type: data.media_type || data.mediaType || null,
               is_read: Boolean(data.is_read),
               created_at: data.createdAt || new Date().toISOString(),
             })

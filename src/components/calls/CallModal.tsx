@@ -28,6 +28,9 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
 }
 
@@ -151,17 +154,27 @@ export const CallModal: React.FC<CallModalProps> = ({
         localStreamRef.current.getTracks().forEach((track) => track.stop())
       }
       if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-          video: callType === 'video' ? { facingMode: facing } : false,
-        })
+        let stream: MediaStream | null = null
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+            video: callType === 'video' ? { facingMode: facing } : false,
+          })
+        } catch {
+          // Fallback to basic audio/video for mobile WebViews
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: callType === 'video' ? true : false,
+          })
+        }
         localStreamRef.current = stream
         if (localVideoRef.current && callType === 'video') {
           localVideoRef.current.srcObject = stream
+          localVideoRef.current.play?.().catch(() => {})
         }
         return stream
       }
@@ -347,8 +360,8 @@ export const CallModal: React.FC<CallModalProps> = ({
         existingCallSession.conversation_id ||
         callService.getStableConversationId(existingCallSession.caller_id, existingCallSession.receiver_id)
 
-      // Start WebRTC as receiver
-      initWebRTC(convId, false)
+      // Start WebRTC as receiver using direct callId channel
+      initWebRTC(existingCallSession.id, false)
 
       // Listen for caller ending call
       unsubscribeCallListener = callService.listenToCall(
@@ -402,8 +415,8 @@ export const CallModal: React.FC<CallModalProps> = ({
             callService.getStableConversationId(session.caller_id, session.receiver_id)
           setCallStatus('ringing')
 
-          // Start WebRTC as caller
-          initWebRTC(convId, true)
+          // Start WebRTC as caller using direct callId channel
+          initWebRTC(session.id, true)
 
           // Real-time listener for receiver attending or declining
           unsubscribeCallListener = callService.listenToCall(
@@ -542,7 +555,20 @@ export const CallModal: React.FC<CallModalProps> = ({
       }}
     >
       {/* Remote Audio Track Player (Guarantee remote voice streaming) */}
-      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{
+          position: 'fixed',
+          top: '-1000px',
+          left: '-1000px',
+          width: '1px',
+          height: '1px',
+          opacity: 0.01,
+          pointerEvents: 'none',
+        }}
+      />
 
       <div
         className="call-card"

@@ -316,9 +316,10 @@ export const callService = {
               const call = docSnap.data() as CallSession
               const callTime = call.created_at ? new Date(call.created_at).getTime() : 0
               const age = Date.now() - callTime
-              if (callTime && age > 40000) {
+              if (callTime && age > 35000) {
+                // If call is older than 35s, it is stale - end it immediately and do not ring
                 updateDoc(docSnap.ref, { status: 'ended' }).catch(() => {})
-              } else {
+              } else if (call.status === 'ringing') {
                 handleIncomingCall(call)
               }
             })
@@ -472,7 +473,23 @@ export const callService = {
       const actorId = auth.currentUser?.uid || updatedCall.receiver_id
       const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
 
-      // 1. Update activeCall on direct conversation
+      // 1. Update Root /calls/{callId} collection document
+      try {
+        await setDoc(
+          doc(db, 'calls', callId),
+          {
+            ...updatedCall,
+            status: 'accepted',
+            answered_at: answeredAt,
+            updatedAt: answeredAt,
+          },
+          { merge: true }
+        )
+      } catch (err) {
+        console.warn('Accept call /calls doc update error:', err)
+      }
+
+      // 2. Update activeCall on direct conversation
       try {
         const convRef = doc(db, 'conversations', convId)
         await setDoc(
@@ -499,7 +516,7 @@ export const callService = {
         console.warn('Accept call conversation sync error:', err)
       }
 
-      // 2. Remove incoming notification from receiver's subcollection
+      // 3. Remove incoming notification from receiver's subcollection
       if (updatedCall.receiver_id) {
         try {
           const myNotifRef = doc(
@@ -544,6 +561,22 @@ export const callService = {
     if (isFirebaseConfigured() && db) {
       const actorId = auth.currentUser?.uid || updatedCall.receiver_id
       const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
+
+      // 1. Update Root /calls/{callId} collection document
+      try {
+        await setDoc(
+          doc(db, 'calls', callId),
+          {
+            ...updatedCall,
+            status: 'declined',
+            ended_at: endedAt,
+            updatedAt: endedAt,
+          },
+          { merge: true }
+        )
+      } catch (err) {
+        console.warn('Decline call /calls doc update error:', err)
+      }
 
       try {
         const convRef = doc(db, 'conversations', convId)
@@ -613,6 +646,22 @@ export const callService = {
       const actorId = auth.currentUser?.uid || updatedCall.caller_id || updatedCall.receiver_id
       const convId = updatedCall.conversation_id || this.getStableConversationId(updatedCall.caller_id, updatedCall.receiver_id)
 
+      // 1. Update Root /calls/{callId} collection document
+      try {
+        await setDoc(
+          doc(db, 'calls', callId),
+          {
+            ...updatedCall,
+            status: 'ended',
+            ended_at: endedAt,
+            updatedAt: endedAt,
+          },
+          { merge: true }
+        )
+      } catch (err) {
+        console.warn('End call /calls doc update error:', err)
+      }
+
       try {
         const convRef = doc(db, 'conversations', convId)
         await setDoc(
@@ -645,73 +694,94 @@ export const callService = {
   /**
    * Send WebRTC SDP Offer
    */
-  async sendWebRtcOffer(conversationId: string, offer: any) {
-    if (!conversationId || !isFirebaseConfigured() || !db) return
+  async sendWebRtcOffer(channelId: string, offer: any) {
+    if (!channelId || !isFirebaseConfigured() || !db) return
+    const payload = {
+      webrtcOffer: offer,
+      callerCandidates: [],
+      receiverCandidates: [],
+      updatedAt: new Date().toISOString(),
+    }
     try {
-      const convRef = doc(db, 'conversations', conversationId)
-      await setDoc(
-        convRef,
-        {
-          webrtcOffer: offer,
-          callerCandidates: [],
-          receiverCandidates: [],
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      )
+      await setDoc(doc(db, 'calls', channelId), payload, { merge: true })
+    } catch {}
+    try {
+      await setDoc(doc(db, 'conversations', channelId), payload, { merge: true })
     } catch {}
   },
 
   /**
    * Send WebRTC SDP Answer
    */
-  async sendWebRtcAnswer(conversationId: string, answer: any) {
-    if (!conversationId || !isFirebaseConfigured() || !db) return
+  async sendWebRtcAnswer(channelId: string, answer: any) {
+    if (!channelId || !isFirebaseConfigured() || !db) return
+    const payload = {
+      webrtcAnswer: answer,
+      updatedAt: new Date().toISOString(),
+    }
     try {
-      const convRef = doc(db, 'conversations', conversationId)
-      await setDoc(
-        convRef,
-        {
-          webrtcAnswer: answer,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      )
+      await setDoc(doc(db, 'calls', channelId), payload, { merge: true })
+    } catch {}
+    try {
+      await setDoc(doc(db, 'conversations', channelId), payload, { merge: true })
     } catch {}
   },
 
   /**
    * Send ICE Candidate
    */
-  async sendIceCandidate(conversationId: string, role: 'caller' | 'receiver', candidate: any) {
-    if (!conversationId || !isFirebaseConfigured() || !db) return
+  async sendIceCandidate(channelId: string, role: 'caller' | 'receiver', candidate: any) {
+    if (!channelId || !isFirebaseConfigured() || !db) return
+    const field = role === 'caller' ? 'callerCandidates' : 'receiverCandidates'
+    const candJson = typeof candidate === 'string' ? candidate : JSON.stringify(candidate)
+    const payload = {
+      [field]: arrayUnion(candJson),
+      updatedAt: new Date().toISOString(),
+    }
     try {
-      const convRef = doc(db, 'conversations', conversationId)
-      const field = role === 'caller' ? 'callerCandidates' : 'receiverCandidates'
-      const candJson = JSON.stringify(candidate)
-      await setDoc(
-        convRef,
-        {
-          [field]: arrayUnion(candJson),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      )
+      await setDoc(doc(db, 'calls', channelId), payload, { merge: true })
+    } catch {}
+    try {
+      await setDoc(doc(db, 'conversations', channelId), payload, { merge: true })
     } catch {}
   },
 
   /**
    * Subscribe to WebRTC conversation signals
    */
-  subscribeWebRtcSignals(conversationId: string, onSignal: (data: any) => void): () => void {
-    if (!conversationId || !isFirebaseConfigured() || !db) return () => {}
-    const convRef = doc(db, 'conversations', conversationId)
-    const unsub = onSnapshot(convRef, (snap) => {
-      if (snap.exists()) {
-        onSignal(snap.data())
-      }
-    })
-    return unsub
+  subscribeWebRtcSignals(channelId: string, onSignal: (data: any) => void): () => void {
+    if (!channelId || !isFirebaseConfigured() || !db) return () => {}
+    let unsubs: (() => void)[] = []
+
+    // 1. Listen on /calls/{channelId}
+    try {
+      const callRef = doc(db, 'calls', channelId)
+      const unsubCall = onSnapshot(callRef, (snap) => {
+        if (snap.exists()) {
+          onSignal(snap.data())
+        }
+      })
+      unsubs.push(unsubCall)
+    } catch {}
+
+    // 2. Listen on /conversations/{channelId}
+    try {
+      const convRef = doc(db, 'conversations', channelId)
+      const unsubConv = onSnapshot(convRef, (snap) => {
+        if (snap.exists()) {
+          onSignal(snap.data())
+        }
+      })
+      unsubs.push(unsubConv)
+    } catch {}
+
+    return () => {
+      unsubs.forEach((u) => {
+        try {
+          u()
+        } catch {}
+      })
+    }
   },
 
   /**

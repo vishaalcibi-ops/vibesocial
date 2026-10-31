@@ -286,11 +286,22 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     setErrorMessage(null)
 
     try {
+      let mediaDataUrl: string | null = null
+      try {
+        const { compressImageFile } = await import('../../utils/imageCompressor')
+        const res = await compressImageFile(file, 800, 0.75)
+        mediaDataUrl = res.dataUrl
+      } catch (err) {
+        console.warn('Direct compress fallback in chat:', err)
+      }
+
       const sentMsg = await messageService.sendMessage({
         conversationId: activeConvId,
         senderId: user.id,
         textContent: '',
         file,
+        mediaUrl: mediaDataUrl,
+        mediaType: 'image',
       })
 
       setMessages((prev) => {
@@ -787,7 +798,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             cursor: 'pointer',
                           }}
                         >
-                          {msg.media_url && (
+                          {Boolean(msg.media_url || (msg as any).mediaUrl) && (
                             <div
                               style={{
                                 borderRadius: '12px',
@@ -797,7 +808,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                               }}
                             >
                               <img
-                                src={msg.media_url}
+                                src={msg.media_url || (msg as any).mediaUrl}
                                 alt="Shared photo"
                                 style={{
                                   width: '100%',
@@ -809,7 +820,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                                 }}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  window.open(msg.media_url || '', '_blank')
+                                  window.open(msg.media_url || (msg as any).mediaUrl || '', '_blank')
                                 }}
                               />
                             </div>
